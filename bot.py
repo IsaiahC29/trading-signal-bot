@@ -1,5 +1,6 @@
 import os
 import html
+import math
 import requests
 import feedparser
 
@@ -16,12 +17,16 @@ RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Optional future channels
+FREE_CHANNEL_ID = os.getenv("FREE_CHANNEL_ID", "")
+VIP_CHANNEL_ID = os.getenv("VIP_CHANNEL_ID", "")
+
 TELEGRAM_API = None
 
 if TELEGRAM_BOT_TOKEN:
-    TELEGRAM_API = (
-        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    )
+    TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+
+BINANCE_API = "https://api.binance.com"
 
 
 # ============================================================
@@ -45,12 +50,12 @@ COINS = {
 
 
 # ============================================================
-# TELEGRAM MESSAGE
+# TELEGRAM
 # ============================================================
 
 def send_telegram(message, chat_id, keyboard=None):
 
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_API:
+    if not TELEGRAM_API:
         print("ERROR: TELEGRAM_BOT_TOKEN is missing.")
         return False
 
@@ -60,7 +65,8 @@ def send_telegram(message, chat_id, keyboard=None):
 
     payload = {
         "chat_id": chat_id,
-        "text": message
+        "text": message,
+        "parse_mode": "HTML"
     }
 
     if keyboard:
@@ -69,66 +75,83 @@ def send_telegram(message, chat_id, keyboard=None):
         }
 
     try:
-
         response = requests.post(
             f"{TELEGRAM_API}/sendMessage",
             json=payload,
             timeout=15
         )
 
-        print(
-            "TELEGRAM SEND:",
-            response.status_code,
-            response.text
-        )
+        print("TELEGRAM SEND:", response.status_code)
+
+        if not response.ok:
+            print(response.text)
 
         return response.ok
 
     except Exception as e:
-
         print("TELEGRAM SEND ERROR:", e)
-
         return False
 
 
+def answer_callback(callback_id):
+
+    if not callback_id or not TELEGRAM_API:
+        return
+
+    try:
+        requests.post(
+            f"{TELEGRAM_API}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10
+        )
+    except Exception as e:
+        print("CALLBACK ACK ERROR:", e)
+
+
 # ============================================================
-# TELEGRAM MAIN MENU
+# MAIN MENU
 # ============================================================
 
 def main_menu():
 
     return [
         [
-            {"text": "📊 BTC", "callback_data": "scan_BTC"},
-            {"text": "📊 ETH", "callback_data": "scan_ETH"}
+            {"text": "🆓 JOIN FREE SIGNALS", "callback_data": "free_join"},
+            {"text": "👑 JOIN VIP", "callback_data": "vip_join"}
         ],
         [
-            {"text": "📊 SOL", "callback_data": "scan_SOL"},
-            {"text": "📊 XRP", "callback_data": "scan_XRP"}
+            {"text": "🔎 SCAN A COIN", "callback_data": "scan_menu"},
+            {"text": "📰 CRYPTO NEWS", "callback_data": "news_all"}
         ],
         [
-            {"text": "📊 PENGU", "callback_data": "scan_PENGU"},
-            {"text": "📊 AVAX", "callback_data": "scan_AVAX"}
-        ],
-        [
-            {"text": "📊 SHIB", "callback_data": "scan_SHIB"},
-            {"text": "📊 DOGE", "callback_data": "scan_DOGE"}
-        ],
-        [
-            {"text": "📊 LINK", "callback_data": "scan_LINK"},
-            {"text": "📊 ADA", "callback_data": "scan_ADA"}
-        ],
-        [
-            {"text": "📊 SUI", "callback_data": "scan_SUI"},
-            {"text": "📊 PEPE", "callback_data": "scan_PEPE"}
-        ],
-        [
-            {"text": "📰 Crypto News", "callback_data": "news_all"}
-        ],
-        [
-            {"text": "ℹ️ Help", "callback_data": "help"}
+            {"text": "ℹ️ HOW SIDESHIFT WORKS", "callback_data": "how_it_works"}
         ]
     ]
+
+
+def coin_menu():
+
+    rows = []
+
+    coin_list = list(COINS.keys())
+
+    for i in range(0, len(coin_list), 2):
+        row = []
+
+        for coin in coin_list[i:i + 2]:
+            row.append({
+                "text": f"📊 {coin}",
+                "callback_data": f"scan_{coin}"
+            })
+
+        rows.append(row)
+
+    rows.append([
+        {"text": "📰 News", "callback_data": "news_all"},
+        {"text": "⬅️ Main Menu", "callback_data": "main_menu"}
+    ])
+
+    return rows
 
 
 # ============================================================
@@ -138,10 +161,29 @@ def main_menu():
 def send_welcome(chat_id):
 
     message = (
-        "🤖 LongShortCryptoBot\n\n"
-        "Welcome!\n\n"
-        "Select a cryptocurrency below to request a scan.\n\n"
-        "📰 Crypto News is also available."
+        "<b>🚀 WELCOME TO SIDESHIFT AI</b>\n\n"
+        "Your AI-powered crypto market intelligence assistant "
+        "designed to analyze potential LONG and SHORT setups.\n\n"
+
+        "<b>What SideShift AI analyzes:</b>\n"
+        "📈 Trend & market structure\n"
+        "⚡ Momentum\n"
+        "📊 Volume\n"
+        "🌊 Volatility\n"
+        "📉 RSI & moving averages\n"
+        "🎯 Support & resistance\n"
+        "📰 Crypto market news\n"
+        "⏱ Multiple timeframes\n"
+        "⚠️ Risk conditions\n\n"
+
+        "<b>Important:</b>\n"
+        "A bullish market does not automatically mean LONG, "
+        "and a bearish market does not automatically mean SHORT.\n\n"
+
+        "SideShift only identifies a potential trade when "
+        "the required conditions align.\n\n"
+
+        "Choose an option below:"
     )
 
     return send_telegram(
@@ -152,26 +194,768 @@ def send_welcome(chat_id):
 
 
 # ============================================================
-# HELP
+# HOW IT WORKS
 # ============================================================
 
-def send_help(chat_id):
+def send_how_it_works(chat_id):
 
     message = (
-        "🤖 LONGSHORTCRYPTOBOT\n\n"
-        "/start — Open the menu\n"
-        "/scan BTC — Request a Bitcoin scan\n"
-        "/scan ETH — Request an Ethereum scan\n"
-        "/scan XRP — Request an XRP scan\n"
-        "/news — View crypto news\n\n"
-        "Use the menu buttons to request a market scan."
+        "<b>🧠 HOW SIDESHIFT AI WORKS</b>\n\n"
+
+        "SideShift analyzes multiple pieces of market information "
+        "before determining the current market condition.\n\n"
+
+        "<b>1️⃣ Trend</b>\n"
+        "Determines whether price is trending bullish, bearish, "
+        "or moving sideways.\n\n"
+
+        "<b>2️⃣ Momentum</b>\n"
+        "Measures the strength and direction of the current move.\n\n"
+
+        "<b>3️⃣ Market Structure</b>\n"
+        "Looks for higher highs/lows, lower highs/lows, or range-bound price action.\n\n"
+
+        "<b>4️⃣ Volume</b>\n"
+        "Checks whether trading activity supports the current move.\n\n"
+
+        "<b>5️⃣ Volatility</b>\n"
+        "Determines whether the market is calm, active, or extremely volatile.\n\n"
+
+        "<b>6️⃣ Multiple Timeframes</b>\n"
+        "Compares short-term and higher-timeframe conditions.\n\n"
+
+        "<b>7️⃣ News</b>\n"
+        "Relevant crypto news can provide additional market context.\n\n"
+
+        "<b>8️⃣ Final Decision</b>\n"
+        "The system can classify the market as bullish, bearish, "
+        "consolidating, indecisive, highly volatile, or overextended.\n\n"
+
+        "If the conditions do not meet the signal requirements, "
+        "SideShift can simply report:\n\n"
+        "⚪ <b>NO QUALIFYING TRADE YET</b>"
     )
 
     return send_telegram(
         message,
         chat_id,
-        main_menu()
+        [
+            [{"text": "🔎 Scan a Coin", "callback_data": "scan_menu"}],
+            [{"text": "⬅️ Main Menu", "callback_data": "main_menu"}]
+        ]
     )
+
+
+# ============================================================
+# FREE / VIP
+# ============================================================
+
+def send_free_info(chat_id):
+
+    message = (
+        "<b>🆓 FREE SIGNALS</b>\n\n"
+        "Join the SideShift AI free signal channel for "
+        "qualifying market alerts.\n\n"
+        "The scanner itself can be used to understand current "
+        "market conditions.\n\n"
+        "The system does not manufacture trades simply to produce "
+        "a certain number of signals.\n\n"
+        "When no setup qualifies, the system can say:\n"
+        "⚪ No qualifying trade yet.\n\n"
+        "👇 Join the free channel:"
+    )
+
+    keyboard = []
+
+    if FREE_CHANNEL_ID:
+        keyboard.append([
+            {
+                "text": "🆓 JOIN FREE SIGNALS",
+                "url": FREE_CHANNEL_ID
+            }
+        ])
+
+    keyboard.append([
+        {"text": "👑 VIP", "callback_data": "vip_join"},
+        {"text": "⬅️ Main Menu", "callback_data": "main_menu"}
+    ])
+
+    return send_telegram(
+        message,
+        chat_id,
+        keyboard
+    )
+
+
+def send_vip_info(chat_id):
+
+    message = (
+        "<b>👑 SIDESHIFT AI VIP</b>\n\n"
+        "VIP is designed to provide expanded access to "
+        "SideShift AI market alerts and analysis.\n\n"
+
+        "Potential VIP features include:\n"
+        "📡 Expanded signal coverage\n"
+        "📊 Additional market analysis\n"
+        "🔎 More qualifying setups when conditions exist\n"
+        "📰 Additional market context\n\n"
+
+        "<b>VIP access: $20</b>\n\n"
+
+        "Payment verification will be connected before "
+        "VIP access is activated.\n\n"
+
+        "⚠️ SideShift AI does not guarantee profits or a specific "
+        "win rate. Trading involves risk."
+    )
+
+    return send_telegram(
+        message,
+        chat_id,
+        [
+            [
+                {
+                    "text": "💳 VIP PAYMENT — COMING NEXT",
+                    "callback_data": "vip_payment"
+                }
+            ],
+            [
+                {"text": "🆓 Free Signals", "callback_data": "free_join"},
+                {"text": "⬅️ Main Menu", "callback_data": "main_menu"}
+            ]
+        ]
+    )
+
+
+# ============================================================
+# BINANCE MARKET DATA
+# ============================================================
+
+def get_klines(symbol, interval="1h", limit=100):
+
+    try:
+
+        response = requests.get(
+            f"{BINANCE_API}/api/v3/klines",
+            params={
+                "symbol": symbol,
+                "interval": interval,
+                "limit": limit
+            },
+            timeout=15
+        )
+
+        if not response.ok:
+            print("BINANCE ERROR:", response.text)
+            return None
+
+        raw = response.json()
+
+        candles = []
+
+        for item in raw:
+            candles.append({
+                "open": float(item[1]),
+                "high": float(item[2]),
+                "low": float(item[3]),
+                "close": float(item[4]),
+                "volume": float(item[5])
+            })
+
+        return candles
+
+    except Exception as e:
+
+        print("MARKET DATA ERROR:", e)
+        return None
+
+
+# ============================================================
+# INDICATORS
+# ============================================================
+
+def sma(values, period):
+
+    if len(values) < period:
+        return None
+
+    return sum(values[-period:]) / period
+
+
+def ema(values, period):
+
+    if len(values) < period:
+        return None
+
+    multiplier = 2 / (period + 1)
+
+    result = sum(values[:period]) / period
+
+    for value in values[period:]:
+        result = (value - result) * multiplier + result
+
+    return result
+
+
+def rsi(values, period=14):
+
+    if len(values) <= period:
+        return None
+
+    gains = []
+    losses = []
+
+    for i in range(1, len(values)):
+        change = values[i] - values[i - 1]
+
+        if change > 0:
+            gains.append(change)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(change))
+
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    for i in range(period, len(gains)):
+        avg_gain = ((avg_gain * (period - 1)) + gains[i]) / period
+        avg_loss = ((avg_loss * (period - 1)) + losses[i]) / period
+
+    if avg_loss == 0:
+        return 100
+
+    rs = avg_gain / avg_loss
+
+    return 100 - (100 / (1 + rs))
+
+
+def atr(candles, period=14):
+
+    if len(candles) <= period:
+        return None
+
+    true_ranges = []
+
+    for i in range(1, len(candles)):
+
+        high = candles[i]["high"]
+        low = candles[i]["low"]
+        previous_close = candles[i - 1]["close"]
+
+        tr = max(
+            high - low,
+            abs(high - previous_close),
+            abs(low - previous_close)
+        )
+
+        true_ranges.append(tr)
+
+    return sum(true_ranges[-period:]) / period
+
+
+# ============================================================
+# MARKET CONDITION ENGINE
+# ============================================================
+
+def classify_market(symbol):
+
+    candles_15m = get_klines(symbol, "15m", 100)
+    candles_1h = get_klines(symbol, "1h", 100)
+    candles_4h = get_klines(symbol, "4h", 100)
+
+    if not candles_15m or not candles_1h or not candles_4h:
+        return None
+
+    closes_15m = [x["close"] for x in candles_15m]
+    closes_1h = [x["close"] for x in candles_1h]
+    closes_4h = [x["close"] for x in candles_4h]
+
+    volumes = [x["volume"] for x in candles_1h]
+
+    current_price = closes_1h[-1]
+
+    ema20_1h = ema(closes_1h, 20)
+    ema50_1h = ema(closes_1h, 50)
+
+    ema20_4h = ema(closes_4h, 20)
+    ema50_4h = ema(closes_4h, 50)
+
+    rsi_value = rsi(closes_1h)
+
+    atr_value = atr(candles_1h)
+
+    volume_average = sma(volumes, 20)
+
+    current_volume = volumes[-1]
+
+    # --------------------------------------------------------
+    # TREND SCORE
+    # --------------------------------------------------------
+
+    bullish_points = 0
+    bearish_points = 0
+
+    if ema20_1h and ema50_1h:
+
+        if current_price > ema20_1h:
+            bullish_points += 1
+        else:
+            bearish_points += 1
+
+        if ema20_1h > ema50_1h:
+            bullish_points += 1
+        else:
+            bearish_points += 1
+
+    if ema20_4h and ema50_4h:
+
+        if ema20_4h > ema50_4h:
+            bullish_points += 2
+        else:
+            bearish_points += 2
+
+    # --------------------------------------------------------
+    # MOMENTUM
+    # --------------------------------------------------------
+
+    momentum = "Neutral"
+
+    if rsi_value is not None:
+
+        if rsi_value >= 60:
+            momentum = "Strong bullish"
+
+        elif rsi_value >= 52:
+            momentum = "Moderate bullish"
+
+        elif rsi_value <= 40:
+            momentum = "Strong bearish"
+
+        elif rsi_value <= 48:
+            momentum = "Moderate bearish"
+
+    # --------------------------------------------------------
+    # MARKET STRUCTURE
+    # --------------------------------------------------------
+
+    recent = candles_1h[-12:]
+
+    highs = [x["high"] for x in recent]
+    lows = [x["low"] for x in recent]
+
+    midpoint = len(recent) // 2
+
+    first_half_high = max(highs[:midpoint])
+    second_half_high = max(highs[midpoint:])
+
+    first_half_low = min(lows[:midpoint])
+    second_half_low = min(lows[midpoint:])
+
+    if (
+        second_half_high > first_half_high
+        and second_half_low > first_half_low
+    ):
+        structure = "Higher highs / higher lows"
+
+    elif (
+        second_half_high < first_half_high
+        and second_half_low < first_half_low
+    ):
+        structure = "Lower highs / lower lows"
+
+    else:
+        structure = "Range / mixed structure"
+
+    # --------------------------------------------------------
+    # VOLUME
+    # --------------------------------------------------------
+
+    if volume_average:
+
+        volume_ratio = current_volume / volume_average
+
+        if volume_ratio >= 1.5:
+            volume_condition = "Well above average"
+
+        elif volume_ratio >= 1.1:
+            volume_condition = "Above average"
+
+        elif volume_ratio <= 0.75:
+            volume_condition = "Below average"
+
+        else:
+            volume_condition = "Near average"
+
+    else:
+
+        volume_condition = "Unavailable"
+        volume_ratio = None
+
+    # --------------------------------------------------------
+    # VOLATILITY
+    # --------------------------------------------------------
+
+    volatility_percent = None
+
+    if atr_value and current_price:
+
+        volatility_percent = (atr_value / current_price) * 100
+
+    if volatility_percent is None:
+
+        volatility = "Unknown"
+
+    elif volatility_percent >= 4:
+
+        volatility = "Extreme"
+
+    elif volatility_percent >= 2:
+
+        volatility = "High"
+
+    elif volatility_percent >= 0.8:
+
+        volatility = "Moderate"
+
+    else:
+
+        volatility = "Low"
+
+    # --------------------------------------------------------
+    # SUPPORT / RESISTANCE
+    # --------------------------------------------------------
+
+    support = min(
+        x["low"] for x in candles_1h[-30:]
+    )
+
+    resistance = max(
+        x["high"] for x in candles_1h[-30:]
+    )
+
+    # --------------------------------------------------------
+    # OVEREXTENDED
+    # --------------------------------------------------------
+
+    overextended = False
+
+    if rsi_value:
+
+        if rsi_value >= 75 or rsi_value <= 25:
+            overextended = True
+
+    # --------------------------------------------------------
+    # MARKET STATE
+    # --------------------------------------------------------
+
+    if overextended:
+
+        market_state = "⚠️ OVEREXTENDED"
+
+    elif volatility == "Extreme":
+
+        market_state = "🟠 HIGH VOLATILITY"
+
+    elif bullish_points >= 4 and structure == "Higher highs / higher lows":
+
+        market_state = "🟢 BULLISH TREND"
+
+    elif bearish_points >= 4 and structure == "Lower highs / lower lows":
+
+        market_state = "🔴 BEARISH TREND"
+
+    elif (
+        abs(bullish_points - bearish_points) <= 1
+        and structure == "Range / mixed structure"
+    ):
+
+        market_state = "🟡 CONSOLIDATION"
+
+    else:
+
+        market_state = "⚪ INDECISIVE"
+
+    # --------------------------------------------------------
+    # SIGNAL QUALIFICATION
+    # --------------------------------------------------------
+
+    signal = "NO TRADE"
+
+    long_score = 0
+    short_score = 0
+
+    if bullish_points >= 4:
+        long_score += 2
+
+    if bearish_points >= 4:
+        short_score += 2
+
+    if rsi_value:
+
+        if 52 <= rsi_value <= 70:
+            long_score += 1
+
+        if 30 <= rsi_value <= 48:
+            short_score += 1
+
+    if structure == "Higher highs / higher lows":
+        long_score += 1
+
+    if structure == "Lower highs / lower lows":
+        short_score += 1
+
+    if volume_ratio and volume_ratio >= 1.1:
+
+        if long_score > short_score:
+            long_score += 1
+
+        elif short_score > long_score:
+            short_score += 1
+
+    # Require multiple confirmations.
+    if long_score >= 4 and long_score > short_score and not overextended:
+        signal = "POTENTIAL LONG"
+
+    elif short_score >= 4 and short_score > long_score and not overextended:
+        signal = "POTENTIAL SHORT"
+
+    return {
+        "price": current_price,
+        "market_state": market_state,
+        "momentum": momentum,
+        "structure": structure,
+        "volume": volume_condition,
+        "volatility": volatility,
+        "rsi": rsi_value,
+        "support": support,
+        "resistance": resistance,
+        "signal": signal,
+        "long_score": long_score,
+        "short_score": short_score
+    }
+
+
+# ============================================================
+# FORMAT MARKET SCAN
+# ============================================================
+
+def format_scan(coin, result):
+
+    if not result:
+
+        return (
+            f"<b>🔎 {coin} SCAN</b>\n\n"
+            "⚠️ Market data could not be retrieved right now.\n\n"
+            "Please try again."
+        )
+
+    price = result["price"]
+
+    rsi_value = result["rsi"]
+
+    if rsi_value is not None:
+        rsi_text = f"{rsi_value:.1f}"
+    else:
+        rsi_text = "N/A"
+
+    signal = result["signal"]
+
+    if signal == "POTENTIAL LONG":
+
+        signal_text = (
+            "🟢 Potential LONG conditions detected.\n"
+            "The setup still requires confirmation before "
+            "being treated as a trade alert."
+        )
+
+    elif signal == "POTENTIAL SHORT":
+
+        signal_text = (
+            "🔴 Potential SHORT conditions detected.\n"
+            "The setup still requires confirmation before "
+            "being treated as a trade alert."
+        )
+
+    else:
+
+        signal_text = (
+            "⚪ <b>NO QUALIFYING TRADE YET</b>\n"
+            "Current conditions do not meet the required "
+            "signal threshold."
+        )
+
+    message = (
+        f"<b>🔎 SIDESHIFT AI — {coin}/USDT</b>\n\n"
+
+        f"<b>Market Condition:</b> {result['market_state']}\n"
+        f"<b>Price:</b> {price:,.8f}\n\n"
+
+        f"<b>Momentum:</b> {result['momentum']}\n"
+        f"<b>Structure:</b> {result['structure']}\n"
+        f"<b>Volume:</b> {result['volume']}\n"
+        f"<b>Volatility:</b> {result['volatility']}\n"
+        f"<b>RSI:</b> {rsi_text}\n\n"
+
+        f"<b>Support:</b> {result['support']:,.8f}\n"
+        f"<b>Resistance:</b> {result['resistance']:,.8f}\n\n"
+
+        f"<b>Assessment:</b>\n"
+        f"{signal_text}\n\n"
+
+        "This scan describes current market conditions. "
+        "It is not a guarantee of future price movement."
+    )
+
+    return message
+
+
+# ============================================================
+# SCAN COIN
+# ============================================================
+
+def send_scan(chat_id, coin):
+
+    if coin not in COINS:
+
+        send_telegram(
+            "❌ That coin is not currently supported.",
+            chat_id,
+            coin_menu()
+        )
+
+        return
+
+    send_telegram(
+        f"🔎 <b>Scanning {coin}/USDT...</b>\n\n"
+        "Analyzing trend, momentum, structure, volume, "
+        "volatility and multiple timeframes.",
+        chat_id
+    )
+
+    result = classify_market(COINS[coin])
+
+    message = format_scan(coin, result)
+
+    send_telegram(
+        message,
+        chat_id,
+        [
+            [
+                {
+                    "text": "🔎 Scan Another Coin",
+                    "callback_data": "scan_menu"
+                }
+            ],
+            [
+                {
+                    "text": "📰 News",
+                    "callback_data": "news_all"
+                },
+                {
+                    "text": "👑 VIP",
+                    "callback_data": "vip_join"
+                }
+            ],
+            [
+                {
+                    "text": "⬅️ Main Menu",
+                    "callback_data": "main_menu"
+                }
+            ]
+        ]
+    )
+
+
+# ============================================================
+# CRYPTO NEWS
+# ============================================================
+
+NEWS_FEEDS = [
+    (
+        "CoinDesk",
+        "https://www.coindesk.com/arc/outboundfeeds/rss/"
+    ),
+    (
+        "Cointelegraph",
+        "https://cointelegraph.com/rss"
+    ),
+    (
+        "Google Crypto News",
+        "https://news.google.com/rss/search?"
+        "q=cryptocurrency+crypto+bitcoin+ethereum+solana"
+        "&hl=en-US&gl=US&ceid=US:en"
+    )
+]
+
+
+def get_crypto_news():
+
+    articles = []
+    seen_titles = set()
+
+    for source, feed_url in NEWS_FEEDS:
+
+        try:
+
+            feed = feedparser.parse(feed_url)
+
+            for item in feed.entries[:6]:
+
+                title = html.unescape(
+                    item.get("title", "")
+                ).strip()
+
+                link = item.get("link", "").strip()
+
+                if not title:
+                    continue
+
+                title_key = title.lower()
+
+                if title_key in seen_titles:
+                    continue
+
+                seen_titles.add(title_key)
+
+                articles.append({
+                    "source": source,
+                    "title": title,
+                    "link": link
+                })
+
+        except Exception as e:
+
+            print(
+                f"NEWS ERROR ({source}):",
+                e
+            )
+
+    if not articles:
+
+        return (
+            "<b>📰 CRYPTO MARKET NEWS</b>\n\n"
+            "No current headlines were available."
+        )
+
+    message = "<b>📰 CRYPTO MARKET NEWS</b>\n\n"
+
+    for number, article in enumerate(
+        articles[:10],
+        start=1
+    ):
+
+        message += (
+            f"<b>{number}. {article['title']}</b>\n"
+            f"Source: {article['source']}\n"
+        )
+
+        if article["link"]:
+            message += f"{article['link']}\n"
+
+        message += "\n"
+
+    return message
 
 
 # ============================================================
@@ -194,7 +978,7 @@ def telegram_webhook():
             return jsonify({"ok": True})
 
         # ====================================================
-        # NORMAL TELEGRAM MESSAGE
+        # NORMAL MESSAGE
         # ====================================================
 
         message = data.get("message")
@@ -212,7 +996,6 @@ def telegram_webhook():
             text = text.strip()
 
             if not chat_id:
-                print("ERROR: No chat ID in Telegram message.")
                 return jsonify({"ok": True})
 
             print(
@@ -235,7 +1018,7 @@ def telegram_webhook():
 
             if text.startswith("/help"):
 
-                send_help(chat_id)
+                send_how_it_works(chat_id)
 
                 return jsonify({"ok": True})
 
@@ -245,12 +1028,17 @@ def telegram_webhook():
 
             if text.startswith("/news"):
 
-                news = get_crypto_news()
-
                 send_telegram(
-                    news,
+                    get_crypto_news(),
                     chat_id,
-                    main_menu()
+                    [
+                        [
+                            {
+                                "text": "⬅️ Main Menu",
+                                "callback_data": "main_menu"
+                            }
+                        ]
+                    ]
                 )
 
                 return jsonify({"ok": True})
@@ -266,52 +1054,30 @@ def telegram_webhook():
                 if len(parts) < 2:
 
                     send_telegram(
-                        "📊 Please choose a coin.\n\n"
-                        "Example:\n"
-                        "/scan BTC\n"
-                        "/scan ETH\n"
-                        "/scan XRP",
+                        "<b>🔎 SELECT A COIN</b>\n\n"
+                        "Choose a cryptocurrency to analyze.",
                         chat_id,
-                        main_menu()
+                        coin_menu()
                     )
 
                     return jsonify({"ok": True})
 
                 coin = parts[1].upper()
 
-                if coin not in COINS:
-
-                    send_telegram(
-                        "❌ That coin is not currently supported.",
-                        chat_id,
-                        main_menu()
-                    )
-
-                    return jsonify({"ok": True})
-
-                send_telegram(
-                    f"📊 {coin} scan requested.\n\n"
-                    "⏳ Please hold while the market "
-                    "scan is processed.",
-                    chat_id
-                )
+                send_scan(chat_id, coin)
 
                 return jsonify({"ok": True})
 
             # ------------------------------------------------
-            # UNKNOWN MESSAGE
+            # UNKNOWN
             # ------------------------------------------------
 
-            send_telegram(
-                "Use /start to open the menu.",
-                chat_id,
-                main_menu()
-            )
+            send_welcome(chat_id)
 
             return jsonify({"ok": True})
 
         # ====================================================
-        # TELEGRAM BUTTON PRESS
+        # BUTTON PRESS
         # ====================================================
 
         callback = data.get("callback_query")
@@ -333,39 +1099,39 @@ def telegram_webhook():
 
             chat_id = callback_chat.get("id")
 
+            answer_callback(callback_id)
+
             print(
-                f"Telegram button pressed: "
-                f"{callback_data}"
+                f"Telegram button pressed: {callback_data}"
             )
 
             # ------------------------------------------------
-            # ACKNOWLEDGE BUTTON PRESS
+            # MAIN MENU
             # ------------------------------------------------
 
-            if callback_id and TELEGRAM_API:
+            if callback_data == "main_menu":
 
-                try:
+                send_welcome(chat_id)
 
-                    response = requests.post(
-                        f"{TELEGRAM_API}/answerCallbackQuery",
-                        json={
-                            "callback_query_id": callback_id
-                        },
-                        timeout=10
-                    )
+                return jsonify({"ok": True})
 
-                    print(
-                        "CALLBACK ACK:",
-                        response.status_code,
-                        response.text
-                    )
+            # ------------------------------------------------
+            # SCAN MENU
+            # ------------------------------------------------
 
-                except Exception as e:
+            if callback_data == "scan_menu":
 
-                    print(
-                        "CALLBACK ACK ERROR:",
-                        e
-                    )
+                send_telegram(
+                    "<b>🔎 SCAN A COIN</b>\n\n"
+                    "Select a supported cryptocurrency.\n\n"
+                    "The scanner will analyze current market "
+                    "conditions including trend, momentum, "
+                    "structure, volume and volatility.",
+                    chat_id,
+                    coin_menu()
+                )
+
+                return jsonify({"ok": True})
 
             # ------------------------------------------------
             # COIN SCAN
@@ -378,14 +1144,57 @@ def telegram_webhook():
                     ""
                 )
 
-                if coin in COINS:
+                send_scan(chat_id, coin)
 
-                    send_telegram(
-                        f"📊 {coin} scan requested.\n\n"
-                        "⏳ Please hold while the market "
-                        "scan is processed.",
-                        chat_id
-                    )
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # FREE
+            # ------------------------------------------------
+
+            if callback_data == "free_join":
+
+                send_free_info(chat_id)
+
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # VIP
+            # ------------------------------------------------
+
+            if callback_data == "vip_join":
+
+                send_vip_info(chat_id)
+
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # VIP PAYMENT PLACEHOLDER
+            # ------------------------------------------------
+
+            if callback_data == "vip_payment":
+
+                send_telegram(
+                    "<b>👑 VIP PAYMENT</b>\n\n"
+                    "Payment verification is not connected yet.\n\n"
+                    "We will connect the payment system after "
+                    "the market scanner and signal engine are tested.",
+                    chat_id,
+                    [
+                        [
+                            {
+                                "text": "⬅️ VIP",
+                                "callback_data": "vip_join"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "⬅️ Main Menu",
+                                "callback_data": "main_menu"
+                            }
+                        ]
+                    ]
+                )
 
                 return jsonify({"ok": True})
 
@@ -395,23 +1204,38 @@ def telegram_webhook():
 
             if callback_data == "news_all":
 
-                news = get_crypto_news()
-
                 send_telegram(
-                    news,
+                    get_crypto_news(),
                     chat_id,
-                    main_menu()
+                    [
+                        [
+                            {
+                                "text": "🔎 Scan",
+                                "callback_data": "scan_menu"
+                            },
+                            {
+                                "text": "👑 VIP",
+                                "callback_data": "vip_join"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "⬅️ Main Menu",
+                                "callback_data": "main_menu"
+                            }
+                        ]
+                    ]
                 )
 
                 return jsonify({"ok": True})
 
             # ------------------------------------------------
-            # HELP
+            # HOW IT WORKS
             # ------------------------------------------------
 
-            if callback_data == "help":
+            if callback_data == "how_it_works":
 
-                send_help(chat_id)
+                send_how_it_works(chat_id)
 
                 return jsonify({"ok": True})
 
@@ -460,10 +1284,6 @@ def tradingview_webhook():
             incoming_secret = data.get("secret")
 
             if incoming_secret != WEBHOOK_SECRET:
-
-                print(
-                    "Unauthorized TradingView request."
-                )
 
                 return jsonify({
                     "error": "Unauthorized"
@@ -515,10 +1335,6 @@ def tradingview_webhook():
             "N/A"
         )
 
-        # ----------------------------------------------------
-        # SIGNAL EMOJI
-        # ----------------------------------------------------
-
         if signal == "LONG":
 
             emoji = "🟢"
@@ -531,24 +1347,17 @@ def tradingview_webhook():
 
             emoji = "⚪"
 
-        # ----------------------------------------------------
-        # SIGNAL MESSAGE
-        # ----------------------------------------------------
-
         signal_message = (
-            f"{emoji} {signal}\n\n"
-            f"{symbol}\n"
+            f"<b>{emoji} {signal}</b>\n\n"
+            f"<b>{symbol}</b>\n"
             f"⏱ Timeframe: {timeframe}\n\n"
             f"Entry: {entry}\n"
             f"Stop Loss: {stop_loss}\n\n"
             f"TP1: {tp1}\n"
             f"TP2: {tp2}\n"
-            f"TP3: {tp3}"
+            f"TP3: {tp3}\n\n"
+            "⚠️ Trading involves risk."
         )
-
-        # ----------------------------------------------------
-        # SEND SIGNAL
-        # ----------------------------------------------------
 
         if TELEGRAM_CHAT_ID:
 
@@ -582,76 +1391,6 @@ def tradingview_webhook():
 
 
 # ============================================================
-# CRYPTO NEWS
-# ============================================================
-
-def get_crypto_news():
-
-    feed_url = (
-        "https://news.google.com/rss/search?"
-        "q=cryptocurrency+crypto+bitcoin+ethereum"
-        "&hl=en-US&gl=US&ceid=US:en"
-    )
-
-    articles = []
-
-    try:
-
-        feed = feedparser.parse(feed_url)
-
-        for item in feed.entries[:8]:
-
-            title = item.get(
-                "title",
-                ""
-            )
-
-            link = item.get(
-                "link",
-                ""
-            )
-
-            if title:
-
-                articles.append(
-                    (
-                        html.unescape(title),
-                        link
-                    )
-                )
-
-    except Exception as e:
-
-        print(
-            "NEWS ERROR:",
-            e
-        )
-
-    if not articles:
-
-        return (
-            "📰 Crypto News\n\n"
-            "No current headlines were available."
-        )
-
-    message = "📰 CRYPTO MARKET NEWS\n\n"
-
-    for number, article in enumerate(
-        articles,
-        start=1
-    ):
-
-        title, link = article
-
-        message += (
-            f"{number}. {title}\n"
-            f"{link}\n\n"
-        )
-
-    return message
-
-
-# ============================================================
 # HEALTH CHECK
 # ============================================================
 
@@ -660,7 +1399,7 @@ def home():
 
     return jsonify({
         "status": "online",
-        "bot": "LongShortCryptoBot",
+        "bot": "SideShift AI",
         "telegram_webhook": "/telegram-webhook",
         "tradingview_webhook": "/webhook",
         "coins": list(COINS.keys())
@@ -739,7 +1478,7 @@ def setup_telegram_webhook():
 if __name__ == "__main__":
 
     print("========================================")
-    print("LongShortCryptoBot starting...")
+    print("SideShift AI starting...")
     print("========================================")
 
     if TELEGRAM_BOT_TOKEN:
