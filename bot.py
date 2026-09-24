@@ -12,19 +12,16 @@ app = Flask(__name__)
 # ============================================================
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Optional: separate group chat for clean signals
-TELEGRAM_GROUP_CHAT_ID = os.getenv("TELEGRAM_GROUP_CHAT_ID")
+TELEGRAM_API = None
 
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
-RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-
-TELEGRAM_API = (
-    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    if TELEGRAM_BOT_TOKEN
-    else None
-)
+if TELEGRAM_BOT_TOKEN:
+    TELEGRAM_API = (
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+    )
 
 
 # ============================================================
@@ -48,23 +45,21 @@ COINS = {
 
 
 # ============================================================
-# TELEGRAM SEND
+# TELEGRAM MESSAGE
 # ============================================================
 
-def send_telegram(message, chat_id=None, keyboard=None):
+def send_telegram(message, chat_id, keyboard=None):
 
-    if not TELEGRAM_BOT_TOKEN:
-        print("ERROR: TELEGRAM_BOT_TOKEN is missing")
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_API:
+        print("ERROR: TELEGRAM_BOT_TOKEN is missing.")
         return False
 
-    target_chat = chat_id or TELEGRAM_CHAT_ID
-
-    if not target_chat:
-        print("ERROR: Telegram chat ID is missing")
+    if not chat_id:
+        print("ERROR: Telegram chat ID is missing.")
         return False
 
     payload = {
-        "chat_id": target_chat,
+        "chat_id": chat_id,
         "text": message
     }
 
@@ -74,6 +69,7 @@ def send_telegram(message, chat_id=None, keyboard=None):
         }
 
     try:
+
         response = requests.post(
             f"{TELEGRAM_API}/sendMessage",
             json=payload,
@@ -81,7 +77,7 @@ def send_telegram(message, chat_id=None, keyboard=None):
         )
 
         print(
-            "Telegram:",
+            "TELEGRAM SEND:",
             response.status_code,
             response.text
         )
@@ -89,12 +85,14 @@ def send_telegram(message, chat_id=None, keyboard=None):
         return response.ok
 
     except Exception as e:
-        print("Telegram error:", e)
+
+        print("TELEGRAM SEND ERROR:", e)
+
         return False
 
 
 # ============================================================
-# MAIN MENU
+# TELEGRAM MAIN MENU
 # ============================================================
 
 def main_menu():
@@ -117,6 +115,14 @@ def main_menu():
             {"text": "📊 DOGE", "callback_data": "scan_DOGE"}
         ],
         [
+            {"text": "📊 LINK", "callback_data": "scan_LINK"},
+            {"text": "📊 ADA", "callback_data": "scan_ADA"}
+        ],
+        [
+            {"text": "📊 SUI", "callback_data": "scan_SUI"},
+            {"text": "📊 PEPE", "callback_data": "scan_PEPE"}
+        ],
+        [
             {"text": "📰 Crypto News", "callback_data": "news_all"}
         ],
         [
@@ -132,14 +138,16 @@ def main_menu():
 def send_welcome(chat_id):
 
     message = (
-        "🤖 LongShortCryptoBot is ONLINE\n\n"
-        "Select a market to scan."
+        "🤖 LongShortCryptoBot\n\n"
+        "Welcome!\n\n"
+        "Select a cryptocurrency below to request a scan.\n\n"
+        "📰 Crypto News is also available."
     )
 
     return send_telegram(
         message,
-        chat_id=chat_id,
-        keyboard=main_menu()
+        chat_id,
+        main_menu()
     )
 
 
@@ -151,19 +159,18 @@ def send_help(chat_id):
 
     message = (
         "🤖 LONGSHORTCRYPTOBOT\n\n"
-        "/start — Open menu\n"
-        "/scan BTC — Scan Bitcoin\n"
-        "/scan ETH — Scan Ethereum\n"
-        "/scan SOL — Scan Solana\n"
-        "/scan XRP — Scan XRP\n"
-        "/news — Crypto news\n\n"
-        "TradingView supplies the technical signals."
+        "/start — Open the menu\n"
+        "/scan BTC — Request a Bitcoin scan\n"
+        "/scan ETH — Request an Ethereum scan\n"
+        "/scan XRP — Request an XRP scan\n"
+        "/news — View crypto news\n\n"
+        "Use the menu buttons to request a market scan."
     )
 
-    send_telegram(
+    return send_telegram(
         message,
-        chat_id=chat_id,
-        keyboard=main_menu()
+        chat_id,
+        main_menu()
     )
 
 
@@ -174,190 +181,255 @@ def send_help(chat_id):
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
 
-    data = request.get_json(silent=True)
+    try:
 
-    print("TELEGRAM UPDATE:", data)
+        data = request.get_json(silent=True)
 
-    if not data:
-        return jsonify({"ok": True})
+        print("========================================")
+        print("TELEGRAM UPDATE RECEIVED")
+        print(data)
+        print("========================================")
 
-    # --------------------------------------------------------
-    # NORMAL MESSAGE
-    # --------------------------------------------------------
-
-    message = data.get("message")
-
-    if message:
-
-        chat = message.get("chat", {})
-        chat_id = chat.get("id")
-
-        text = message.get("text", "").strip()
-
-        if not chat_id:
+        if not data:
             return jsonify({"ok": True})
 
-        # /start
-        if text.startswith("/start"):
+        # ====================================================
+        # NORMAL TELEGRAM MESSAGE
+        # ====================================================
 
-            send_welcome(chat_id)
+        message = data.get("message")
 
-            return jsonify({"ok": True})
+        if message:
 
-        # /help
-        if text.startswith("/help"):
+            chat = message.get("chat", {})
+            chat_id = chat.get("id")
 
-            send_help(chat_id)
+            text = message.get("text", "")
 
-            return jsonify({"ok": True})
+            if not text:
+                return jsonify({"ok": True})
 
-        # /news
-        if text.startswith("/news"):
+            text = text.strip()
 
-            news = get_crypto_news()
+            if not chat_id:
+                print("ERROR: No chat ID in Telegram message.")
+                return jsonify({"ok": True})
 
-            send_telegram(
-                news,
-                chat_id=chat_id,
-                keyboard=main_menu()
+            print(
+                f"Telegram message from {chat_id}: {text}"
             )
 
-            return jsonify({"ok": True})
+            # ------------------------------------------------
+            # START
+            # ------------------------------------------------
 
-        # /scan
-        if text.lower().startswith("/scan"):
+            if text.startswith("/start"):
 
-            parts = text.split()
+                send_welcome(chat_id)
 
-            if len(parts) < 2:
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # HELP
+            # ------------------------------------------------
+
+            if text.startswith("/help"):
+
+                send_help(chat_id)
+
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # NEWS
+            # ------------------------------------------------
+
+            if text.startswith("/news"):
+
+                news = get_crypto_news()
 
                 send_telegram(
-                    "Example:\n\n"
-                    "/scan BTC\n"
-                    "/scan ETH\n"
-                    "/scan XRP",
-                    chat_id=chat_id
+                    news,
+                    chat_id,
+                    main_menu()
                 )
 
                 return jsonify({"ok": True})
 
-            coin = parts[1].upper()
+            # ------------------------------------------------
+            # SCAN
+            # ------------------------------------------------
 
-            if coin not in COINS:
+            if text.lower().startswith("/scan"):
 
-                send_telegram(
-                    "That coin isn't currently supported.",
-                    chat_id=chat_id,
-                    keyboard=main_menu()
-                )
+                parts = text.split()
 
-                return jsonify({"ok": True})
+                if len(parts) < 2:
 
-            # Important:
-            # Manual scan requests are sent through TradingView
-            # architecture later. For now, tell the user the
-            # scanner is awaiting the TradingView signal engine.
+                    send_telegram(
+                        "📊 Please choose a coin.\n\n"
+                        "Example:\n"
+                        "/scan BTC\n"
+                        "/scan ETH\n"
+                        "/scan XRP",
+                        chat_id,
+                        main_menu()
+                    )
 
-            send_telegram(
-                f"📊 {coin} scan requested.\n\n"
-                "The TradingView signal engine will provide "
-                "the qualified setup.",
-                chat_id=chat_id
-            )
+                    return jsonify({"ok": True})
 
-            return jsonify({"ok": True})
+                coin = parts[1].upper()
 
-        send_telegram(
-            "Use /start to open the menu.",
-            chat_id=chat_id,
-            keyboard=main_menu()
-        )
+                if coin not in COINS:
 
-        return jsonify({"ok": True})
+                    send_telegram(
+                        "❌ That coin is not currently supported.",
+                        chat_id,
+                        main_menu()
+                    )
 
-    # --------------------------------------------------------
-    # BUTTON PRESS
-    # --------------------------------------------------------
-
-    callback = data.get("callback_query")
-
-    if callback:
-
-        callback_data = callback.get("data", "")
-
-        callback_message = callback.get(
-            "message",
-            {}
-        )
-
-        callback_chat = callback_message.get(
-            "chat",
-            {}
-        )
-
-        chat_id = callback_chat.get("id")
-
-        callback_id = callback.get("id")
-
-        # Answer Telegram's button press
-        if callback_id:
-
-            try:
-
-                requests.post(
-                    f"{TELEGRAM_API}/answerCallbackQuery",
-                    json={
-                        "callback_query_id": callback_id
-                    },
-                    timeout=10
-                )
-
-            except Exception as e:
-
-                print("Callback error:", e)
-
-        # Scan
-        if callback_data.startswith("scan_"):
-
-            coin = callback_data.replace(
-                "scan_",
-                ""
-            )
-
-            if coin in COINS:
+                    return jsonify({"ok": True})
 
                 send_telegram(
                     f"📊 {coin} scan requested.\n\n"
-                    "Waiting for the TradingView "
-                    "signal engine.",
-                    chat_id=chat_id
+                    "⏳ Please hold while the market "
+                    "scan is processed.",
+                    chat_id
                 )
 
-            return jsonify({"ok": True})
+                return jsonify({"ok": True})
 
-        # News
-        if callback_data == "news_all":
-
-            news = get_crypto_news()
+            # ------------------------------------------------
+            # UNKNOWN MESSAGE
+            # ------------------------------------------------
 
             send_telegram(
-                news,
-                chat_id=chat_id,
-                keyboard=main_menu()
+                "Use /start to open the menu.",
+                chat_id,
+                main_menu()
             )
 
             return jsonify({"ok": True})
 
-        # Help
-        if callback_data == "help":
+        # ====================================================
+        # TELEGRAM BUTTON PRESS
+        # ====================================================
 
-            send_help(chat_id)
+        callback = data.get("callback_query")
+
+        if callback:
+
+            callback_id = callback.get("id")
+            callback_data = callback.get("data", "")
+
+            callback_message = callback.get(
+                "message",
+                {}
+            )
+
+            callback_chat = callback_message.get(
+                "chat",
+                {}
+            )
+
+            chat_id = callback_chat.get("id")
+
+            print(
+                f"Telegram button pressed: "
+                f"{callback_data}"
+            )
+
+            # ------------------------------------------------
+            # ACKNOWLEDGE BUTTON PRESS
+            # ------------------------------------------------
+
+            if callback_id and TELEGRAM_API:
+
+                try:
+
+                    response = requests.post(
+                        f"{TELEGRAM_API}/answerCallbackQuery",
+                        json={
+                            "callback_query_id": callback_id
+                        },
+                        timeout=10
+                    )
+
+                    print(
+                        "CALLBACK ACK:",
+                        response.status_code,
+                        response.text
+                    )
+
+                except Exception as e:
+
+                    print(
+                        "CALLBACK ACK ERROR:",
+                        e
+                    )
+
+            # ------------------------------------------------
+            # COIN SCAN
+            # ------------------------------------------------
+
+            if callback_data.startswith("scan_"):
+
+                coin = callback_data.replace(
+                    "scan_",
+                    ""
+                )
+
+                if coin in COINS:
+
+                    send_telegram(
+                        f"📊 {coin} scan requested.\n\n"
+                        "⏳ Please hold while the market "
+                        "scan is processed.",
+                        chat_id
+                    )
+
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # NEWS
+            # ------------------------------------------------
+
+            if callback_data == "news_all":
+
+                news = get_crypto_news()
+
+                send_telegram(
+                    news,
+                    chat_id,
+                    main_menu()
+                )
+
+                return jsonify({"ok": True})
+
+            # ------------------------------------------------
+            # HELP
+            # ------------------------------------------------
+
+            if callback_data == "help":
+
+                send_help(chat_id)
+
+                return jsonify({"ok": True})
 
             return jsonify({"ok": True})
 
         return jsonify({"ok": True})
 
-    return jsonify({"ok": True})
+    except Exception as e:
+
+        print(
+            "TELEGRAM WEBHOOK ERROR:",
+            e
+        )
+
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
 
 
 # ============================================================
@@ -367,171 +439,146 @@ def telegram_webhook():
 @app.route("/webhook", methods=["POST"])
 def tradingview_webhook():
 
-    data = request.get_json(
-        silent=True
-    )
+    try:
 
-    print("TRADINGVIEW:", data)
+        data = request.get_json(silent=True)
 
-    if not data:
+        print("TRADINGVIEW SIGNAL:", data)
 
-        return jsonify({
-            "error": "No JSON received"
-        }), 400
-
-    # --------------------------------------------------------
-    # SECURITY
-    # --------------------------------------------------------
-
-    if WEBHOOK_SECRET:
-
-        incoming_secret = data.get(
-            "secret"
-        )
-
-        if incoming_secret != WEBHOOK_SECRET:
-
-            print("Unauthorized TradingView request")
+        if not data:
 
             return jsonify({
-                "error": "Unauthorized"
-            }), 401
+                "error": "No JSON received"
+            }), 400
 
-    # --------------------------------------------------------
-    # SIGNAL DATA
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # SECURITY
+        # ----------------------------------------------------
 
-    symbol = data.get(
-        "symbol",
-        "UNKNOWN"
-    )
+        if WEBHOOK_SECRET:
 
-    signal = data.get(
-        "signal",
-        "NO TRADE"
-    ).upper()
+            incoming_secret = data.get("secret")
 
-    timeframe = data.get(
-        "timeframe",
-        "N/A"
-    )
+            if incoming_secret != WEBHOOK_SECRET:
 
-    entry = data.get(
-        "entry",
-        "N/A"
-    )
+                print(
+                    "Unauthorized TradingView request."
+                )
 
-    stop_loss = data.get(
-        "stop_loss",
-        "N/A"
-    )
+                return jsonify({
+                    "error": "Unauthorized"
+                }), 401
 
-    tp1 = data.get(
-        "tp1",
-        "N/A"
-    )
+        # ----------------------------------------------------
+        # SIGNAL DATA
+        # ----------------------------------------------------
 
-    tp2 = data.get(
-        "tp2",
-        "N/A"
-    )
-
-    tp3 = data.get(
-        "tp3",
-        "N/A"
-    )
-
-    # --------------------------------------------------------
-    # CONFIRMATIONS
-    # --------------------------------------------------------
-
-    confirmations = data.get(
-        "confirmations",
-        ""
-    )
-
-    # --------------------------------------------------------
-    # SIGNAL MESSAGE
-    # --------------------------------------------------------
-
-    if signal == "LONG":
-
-        emoji = "🟢"
-
-    elif signal == "SHORT":
-
-        emoji = "🔴"
-
-    else:
-
-        emoji = "⚪"
-
-    # --------------------------------------------------------
-    # GROUP MESSAGE
-    #
-    # Keep group chats CLEAN:
-    # signal + entry + SL + TP1/TP2/TP3
-    # --------------------------------------------------------
-
-    group_message = (
-        f"{emoji} {signal}\n\n"
-
-        f"{symbol}\n"
-        f"⏱ {timeframe}\n\n"
-
-        f"Entry: {entry}\n"
-        f"Stop Loss: {stop_loss}\n\n"
-
-        f"TP1: {tp1}\n"
-        f"TP2: {tp2}\n"
-        f"TP3: {tp3}"
-    )
-
-    # --------------------------------------------------------
-    # SEND TO GROUP
-    # --------------------------------------------------------
-
-    if TELEGRAM_GROUP_CHAT_ID:
-
-        send_telegram(
-            group_message,
-            chat_id=TELEGRAM_GROUP_CHAT_ID
+        symbol = data.get(
+            "symbol",
+            "UNKNOWN"
         )
 
-    # --------------------------------------------------------
-    # OPTIONAL PRIVATE MESSAGE
-    #
-    # Private chat can include confirmations.
-    # --------------------------------------------------------
+        signal = str(
+            data.get(
+                "signal",
+                "NO TRADE"
+            )
+        ).upper()
 
-    private_message = (
-        f"{emoji} {signal} SIGNAL\n\n"
-
-        f"Symbol: {symbol}\n"
-        f"Timeframe: {timeframe}\n\n"
-
-        f"Entry: {entry}\n"
-        f"Stop Loss: {stop_loss}\n\n"
-
-        f"TP1: {tp1}\n"
-        f"TP2: {tp2}\n"
-        f"TP3: {tp3}\n\n"
-
-        f"Confirmations:\n"
-        f"{confirmations}"
-    )
-
-    if TELEGRAM_CHAT_ID:
-
-        send_telegram(
-            private_message
+        timeframe = data.get(
+            "timeframe",
+            "N/A"
         )
 
-    return jsonify({
-        "status": "signal received",
-        "signal": signal,
-        "symbol": symbol
-    })
+        entry = data.get(
+            "entry",
+            "N/A"
+        )
+
+        stop_loss = data.get(
+            "stop_loss",
+            "N/A"
+        )
+
+        tp1 = data.get(
+            "tp1",
+            "N/A"
+        )
+
+        tp2 = data.get(
+            "tp2",
+            "N/A"
+        )
+
+        tp3 = data.get(
+            "tp3",
+            "N/A"
+        )
+
+        # ----------------------------------------------------
+        # SIGNAL EMOJI
+        # ----------------------------------------------------
+
+        if signal == "LONG":
+
+            emoji = "🟢"
+
+        elif signal == "SHORT":
+
+            emoji = "🔴"
+
+        else:
+
+            emoji = "⚪"
+
+        # ----------------------------------------------------
+        # SIGNAL MESSAGE
+        # ----------------------------------------------------
+
+        signal_message = (
+            f"{emoji} {signal}\n\n"
+            f"{symbol}\n"
+            f"⏱ Timeframe: {timeframe}\n\n"
+            f"Entry: {entry}\n"
+            f"Stop Loss: {stop_loss}\n\n"
+            f"TP1: {tp1}\n"
+            f"TP2: {tp2}\n"
+            f"TP3: {tp3}"
+        )
+
+        # ----------------------------------------------------
+        # SEND SIGNAL
+        # ----------------------------------------------------
+
+        if TELEGRAM_CHAT_ID:
+
+            send_telegram(
+                signal_message,
+                TELEGRAM_CHAT_ID
+            )
+
+        else:
+
+            print(
+                "WARNING: TELEGRAM_CHAT_ID is not configured."
+            )
+
+        return jsonify({
+            "status": "signal received",
+            "symbol": symbol,
+            "signal": signal
+        })
+
+    except Exception as e:
+
+        print(
+            "TRADINGVIEW WEBHOOK ERROR:",
+            e
+        )
+
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 
 # ============================================================
@@ -540,46 +587,45 @@ def tradingview_webhook():
 
 def get_crypto_news():
 
-    feeds = [
+    feed_url = (
         "https://news.google.com/rss/search?"
         "q=cryptocurrency+crypto+bitcoin+ethereum"
         "&hl=en-US&gl=US&ceid=US:en"
-    ]
+    )
 
     articles = []
 
-    for feed_url in feeds:
+    try:
 
-        try:
+        feed = feedparser.parse(feed_url)
 
-            feed = feedparser.parse(
-                feed_url
+        for item in feed.entries[:8]:
+
+            title = item.get(
+                "title",
+                ""
             )
 
-            for item in feed.entries[:8]:
+            link = item.get(
+                "link",
+                ""
+            )
 
-                title = item.get(
-                    "title",
-                    ""
-                )
+            if title:
 
-                link = item.get(
-                    "link",
-                    ""
-                )
-
-                if title:
-
-                    articles.append(
-                        (title, link)
+                articles.append(
+                    (
+                        html.unescape(title),
+                        link
                     )
+                )
 
-        except Exception as e:
+    except Exception as e:
 
-            print(
-                "News error:",
-                e
-            )
+        print(
+            "NEWS ERROR:",
+            e
+        )
 
     if not articles:
 
@@ -590,19 +636,15 @@ def get_crypto_news():
 
     message = "📰 CRYPTO MARKET NEWS\n\n"
 
-    for i, article in enumerate(
-        articles[:8],
+    for number, article in enumerate(
+        articles,
         start=1
     ):
 
-        title = html.unescape(
-            article[0]
-        )
-
-        link = article[1]
+        title, link = article
 
         message += (
-            f"{i}. {title}\n"
+            f"{number}. {title}\n"
             f"{link}\n\n"
         )
 
@@ -619,8 +661,8 @@ def home():
     return jsonify({
         "status": "online",
         "bot": "LongShortCryptoBot",
-        "telegram": "/telegram-webhook",
-        "tradingview": "/webhook",
+        "telegram_webhook": "/telegram-webhook",
+        "tradingview_webhook": "/webhook",
         "coins": list(COINS.keys())
     })
 
@@ -634,7 +676,7 @@ def setup_telegram_webhook():
     if not TELEGRAM_BOT_TOKEN:
 
         print(
-            "ERROR: TELEGRAM_BOT_TOKEN missing"
+            "ERROR: TELEGRAM_BOT_TOKEN is missing."
         )
 
         return False
@@ -642,7 +684,7 @@ def setup_telegram_webhook():
     if not RAILWAY_PUBLIC_DOMAIN:
 
         print(
-            "ERROR: RAILWAY_PUBLIC_DOMAIN missing"
+            "ERROR: RAILWAY_PUBLIC_DOMAIN is missing."
         )
 
         return False
@@ -650,6 +692,11 @@ def setup_telegram_webhook():
     webhook_url = (
         f"https://{RAILWAY_PUBLIC_DOMAIN}"
         "/telegram-webhook"
+    )
+
+    print(
+        "SETTING TELEGRAM WEBHOOK:",
+        webhook_url
     )
 
     try:
@@ -668,7 +715,7 @@ def setup_telegram_webhook():
         )
 
         print(
-            "Webhook setup:",
+            "WEBHOOK SETUP:",
             response.status_code,
             response.text
         )
@@ -678,7 +725,7 @@ def setup_telegram_webhook():
     except Exception as e:
 
         print(
-            "Webhook setup error:",
+            "WEBHOOK SETUP ERROR:",
             e
         )
 
@@ -686,17 +733,39 @@ def setup_telegram_webhook():
 
 
 # ============================================================
-# START
+# START SERVER
 # ============================================================
 
 if __name__ == "__main__":
+
+    print("========================================")
+    print("LongShortCryptoBot starting...")
+    print("========================================")
+
+    if TELEGRAM_BOT_TOKEN:
+        print("Telegram token: FOUND")
+    else:
+        print("Telegram token: MISSING")
+
+    if RAILWAY_PUBLIC_DOMAIN:
+        print(
+            "Railway domain:",
+            RAILWAY_PUBLIC_DOMAIN
+        )
+    else:
+        print("Railway domain: MISSING")
+
+    if TELEGRAM_CHAT_ID:
+        print("Telegram chat ID: FOUND")
+    else:
+        print("Telegram chat ID: MISSING")
 
     setup_telegram_webhook()
 
     port = int(
         os.getenv(
             "PORT",
-            8080
+            "8080"
         )
     )
 
