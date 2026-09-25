@@ -4,7 +4,6 @@ import time
 import math
 import requests
 import feedparser
-
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -20,15 +19,13 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
 TELEGRAM_API = (
     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    if TELEGRAM_BOT_TOKEN
-    else None
+    if TELEGRAM_BOT_TOKEN else None
 )
 
 REQUEST_TIMEOUT = 15
 
-
 # ============================================================
-# COINS
+# COINS / TIMEFRAMES
 # ============================================================
 
 COINS = {
@@ -45,11 +42,6 @@ COINS = {
     "SUI": ("SUIUSDT", "SUI-USD"),
     "PEPE": ("PEPEUSDT", "PEPE-USD"),
 }
-
-
-# ============================================================
-# TIMEFRAMES
-# ============================================================
 
 TIMEFRAMES = {
     "5m": {
@@ -79,12 +71,62 @@ TIMEFRAMES = {
     },
 }
 
-
-# ============================================================
-# OPTIONAL TRADINGVIEW ALERT CACHE
-# ============================================================
-
 TRADINGVIEW_CACHE = {}
+
+# ============================================================
+# UTILITIES
+# ============================================================
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def mean(values):
+    values = [x for x in values if x is not None]
+
+    if not values:
+        return None
+
+    return sum(values) / len(values)
+
+
+def format_price(price):
+    if price is None:
+        return "Unavailable"
+
+    if price >= 1000:
+        return f"${price:,.2f}"
+
+    if price >= 1:
+        return f"${price:,.4f}"
+
+    if price >= 0.01:
+        return f"${price:,.6f}"
+
+    return f"${price:,.10f}"
+
+
+def format_level(price):
+    if price is None:
+        return "N/A"
+
+    return format_price(price)
+
+
+def direction_emoji(direction):
+    if direction == "Bullish":
+        return "🟢"
+
+    if direction == "Bearish":
+        return "🔴"
+
+    if "Bullish" in direction:
+        return "🟩"
+
+    if "Bearish" in direction:
+        return "🟥"
+
+    return "🟡"
 
 
 # ============================================================
@@ -104,7 +146,7 @@ def send_telegram(message, chat_id, keyboard=None):
         "disable_web_page_preview": True,
     }
 
-    if keyboard:
+    if keyboard is not None:
         payload["reply_markup"] = {
             "inline_keyboard": keyboard
         }
@@ -125,9 +167,13 @@ def send_telegram(message, chat_id, keyboard=None):
 
         return response.ok
 
-    except Exception as e:
+    except Exception as exc:
 
-        print("TELEGRAM ERROR:", repr(e))
+        print(
+            "TELEGRAM ERROR:",
+            repr(exc),
+        )
+
         return False
 
 
@@ -219,40 +265,7 @@ def scan_menu():
 
 
 # ============================================================
-# BASIC MATH
-# ============================================================
-
-def safe_float(value):
-
-    try:
-        return float(value)
-    except Exception:
-        return None
-
-
-def mean(values):
-
-    values = [
-        x for x in values
-        if x is not None
-    ]
-
-    if not values:
-        return None
-
-    return sum(values) / len(values)
-
-
-def clamp(value, minimum, maximum):
-
-    return max(
-        minimum,
-        min(maximum, value)
-    )
-
-
-# ============================================================
-# EMA
+# TECHNICAL INDICATORS
 # ============================================================
 
 def ema(values, period):
@@ -264,13 +277,17 @@ def ema(values, period):
 
     multiplier = 2 / (period + 1)
 
-    previous = sum(
-        values[:period]
-    ) / period
+    previous = (
+        sum(values[:period])
+        / period
+    )
 
     result[period - 1] = previous
 
-    for i in range(period, len(values)):
+    for i in range(
+        period,
+        len(values),
+    ):
 
         previous = (
             values[i] * multiplier
@@ -282,40 +299,10 @@ def ema(values, period):
     return result
 
 
-# ============================================================
-# SMA
-# ============================================================
-
-def sma(values, period):
-
-    result = [None] * len(values)
-
-    if len(values) < period:
-        return result
-
-    running = sum(values[:period])
-
-    result[period - 1] = (
-        running / period
-    )
-
-    for i in range(period, len(values)):
-
-        running += values[i]
-        running -= values[i - period]
-
-        result[i] = (
-            running / period
-        )
-
-    return result
-
-
-# ============================================================
-# RSI
-# ============================================================
-
-def calculate_rsi(closes, period=14):
+def calculate_rsi(
+    closes,
+    period=14,
+):
 
     if len(closes) < period + 1:
         return None
@@ -323,7 +310,10 @@ def calculate_rsi(closes, period=14):
     gains = []
     losses = []
 
-    for i in range(1, len(closes)):
+    for i in range(
+        1,
+        len(closes),
+    ):
 
         change = (
             closes[i]
@@ -348,7 +338,10 @@ def calculate_rsi(closes, period=14):
         / period
     )
 
-    for i in range(period, len(gains)):
+    for i in range(
+        period,
+        len(gains),
+    ):
 
         avg_gain = (
             (
@@ -376,23 +369,26 @@ def calculate_rsi(closes, period=14):
     )
 
 
-# ============================================================
-# ATR
-# ============================================================
-
-def calculate_atr(candles, period=14):
+def calculate_atr(
+    candles,
+    period=14,
+):
 
     if len(candles) < period + 1:
         return None
 
     true_ranges = []
 
-    for i in range(1, len(candles)):
+    for i in range(
+        1,
+        len(candles),
+    ):
 
         current = candles[i]
         previous = candles[i - 1]
 
         tr = max(
+
             current["high"]
             - current["low"],
 
@@ -427,21 +423,26 @@ def calculate_atr(candles, period=14):
     return atr
 
 
-# ============================================================
-# MACD
-# ============================================================
-
 def calculate_macd(closes):
 
     if len(closes) < 50:
         return None
 
-    ema12 = ema(closes, 12)
-    ema26 = ema(closes, 26)
+    ema12 = ema(
+        closes,
+        12,
+    )
+
+    ema26 = ema(
+        closes,
+        26,
+    )
 
     macd_values = []
 
-    for i in range(len(closes)):
+    for i in range(
+        len(closes)
+    ):
 
         if (
             ema12[i] is not None
@@ -449,7 +450,8 @@ def calculate_macd(closes):
         ):
 
             macd_values.append(
-                ema12[i] - ema26[i]
+                ema12[i]
+                - ema26[i]
             )
 
     if len(macd_values) < 9:
@@ -464,6 +466,7 @@ def calculate_macd(closes):
         return None
 
     value = macd_values[-1]
+
     signal = signal_values[-1]
 
     return {
@@ -472,10 +475,6 @@ def calculate_macd(closes):
         "histogram": value - signal,
     }
 
-
-# ============================================================
-# BOLLINGER BANDS
-# ============================================================
 
 def calculate_bollinger(
     closes,
@@ -488,7 +487,10 @@ def calculate_bollinger(
 
     window = closes[-period:]
 
-    middle = sum(window) / period
+    middle = (
+        sum(window)
+        / period
+    )
 
     variance = (
         sum(
@@ -498,39 +500,42 @@ def calculate_bollinger(
         / period
     )
 
-    std = math.sqrt(variance)
-
-    upper = (
-        middle
-        + deviations * std
-    )
-
-    lower = (
-        middle
-        - deviations * std
+    std = math.sqrt(
+        variance
     )
 
     return {
-        "middle": middle,
-        "upper": upper,
-        "lower": lower,
+        "middle":
+            middle,
+
+        "upper":
+            middle
+            + deviations * std,
+
+        "lower":
+            middle
+            - deviations * std,
     }
 
 
-# ============================================================
-# ADX
-# ============================================================
+def calculate_adx(
+    candles,
+    period=14,
+):
 
-def calculate_adx(candles, period=14):
-
-    if len(candles) < period * 2 + 1:
+    if len(candles) < (
+        period * 2 + 1
+    ):
         return None
 
     trs = []
     plus_dm = []
     minus_dm = []
 
-    for i in range(1, len(candles)):
+    for i in range(
+        1,
+        len(candles),
+    ):
 
         current = candles[i]
         previous = candles[i - 1]
@@ -545,59 +550,62 @@ def calculate_adx(candles, period=14):
             - current["low"]
         )
 
-        up = (
+        plus_dm.append(
             high_move
-            if high_move > low_move
-            and high_move > 0
+            if (
+                high_move > low_move
+                and high_move > 0
+            )
             else 0
         )
 
-        down = (
+        minus_dm.append(
             low_move
-            if low_move > high_move
-            and low_move > 0
+            if (
+                low_move > high_move
+                and low_move > 0
+            )
             else 0
         )
 
-        tr = max(
-            current["high"]
-            - current["low"],
+        trs.append(
+            max(
 
-            abs(
                 current["high"]
-                - previous["close"]
-            ),
+                - current["low"],
 
-            abs(
-                current["low"]
-                - previous["close"]
-            ),
+                abs(
+                    current["high"]
+                    - previous["close"]
+                ),
+
+                abs(
+                    current["low"]
+                    - previous["close"]
+                ),
+            )
         )
 
-        trs.append(tr)
-        plus_dm.append(up)
-        minus_dm.append(down)
+    atr = (
+        sum(trs[:period])
+        / period
+    )
 
-    if len(trs) < period:
-        return None
+    p_dm = (
+        sum(plus_dm[:period])
+        / period
+    )
 
-    atr = sum(
-        trs[:period]
-    ) / period
-
-    p_dm = sum(
-        plus_dm[:period]
-    ) / period
-
-    m_dm = sum(
-        minus_dm[:period]
-    ) / period
+    m_dm = (
+        sum(minus_dm[:period])
+        / period
+    )
 
     dx_values = []
 
     for i in range(
         period,
-        len(trs)
+        len(trs),
     ):
 
         atr = (
@@ -643,7 +651,7 @@ def calculate_adx(candles, period=14):
         if denominator == 0:
             continue
 
-        dx = (
+        dx_values.append(
             100
             * abs(
                 plus_di
@@ -652,16 +660,13 @@ def calculate_adx(candles, period=14):
             / denominator
         )
 
-        dx_values.append(
-            dx
-        )
-
     if len(dx_values) < period:
         return None
 
-    adx = sum(
-        dx_values[:period]
-    ) / period
+    adx = (
+        sum(dx_values[:period])
+        / period
+    )
 
     for value in dx_values[period:]:
 
@@ -676,11 +681,10 @@ def calculate_adx(candles, period=14):
     return adx
 
 
-# ============================================================
-# VWAP
-# ============================================================
-
-def calculate_vwap(candles, lookback=100):
+def calculate_vwap(
+    candles,
+    lookback=100,
+):
 
     candles = candles[-lookback:]
 
@@ -692,7 +696,7 @@ def calculate_vwap(candles, lookback=100):
 
     for candle in candles:
 
-        typical_price = (
+        typical = (
             candle["high"]
             + candle["low"]
             + candle["close"]
@@ -701,7 +705,7 @@ def calculate_vwap(candles, lookback=100):
         volume = candle["volume"]
 
         cumulative_pv += (
-            typical_price * volume
+            typical * volume
         )
 
         cumulative_volume += volume
@@ -714,10 +718,6 @@ def calculate_vwap(candles, lookback=100):
         / cumulative_volume
     )
 
-
-# ============================================================
-# VOLUME PROFILE APPROXIMATION
-# ============================================================
 
 def calculate_volume_profile(
     candles,
@@ -761,14 +761,19 @@ def calculate_volume_profile(
         ) / 3
 
         index = int(
-            (typical - low)
+            (
+                typical
+                - low
+            )
             / bucket_size
         )
 
-        index = clamp(
-            index,
-            0,
-            bins - 1,
+        index = int(
+            clamp(
+                index,
+                0,
+                bins - 1,
+            )
         )
 
         profile[index] += (
@@ -777,7 +782,8 @@ def calculate_volume_profile(
 
     poc_index = max(
         range(bins),
-        key=lambda i: profile[i]
+        key=lambda i:
+        profile[i],
     )
 
     poc = (
@@ -794,7 +800,7 @@ def calculate_volume_profile(
 
 
 # ============================================================
-# SWING HIGHS / LOWS
+# PRICE ACTION / STRUCTURE
 # ============================================================
 
 def find_swings(
@@ -807,58 +813,64 @@ def find_swings(
     swing_lows = []
 
     if len(candles) < (
-        left + right + 1
+        left
+        + right
+        + 1
     ):
-        return swing_highs, swing_lows
+
+        return (
+            swing_highs,
+            swing_lows,
+        )
 
     for i in range(
         left,
-        len(candles) - right
+        len(candles) - right,
     ):
 
         current = candles[i]
 
         is_high = all(
+
             current["high"]
             > candles[j]["high"]
+
             for j in range(
                 i - left,
-                i + right + 1
+                i + right + 1,
             )
+
             if j != i
         )
 
         is_low = all(
+
             current["low"]
             < candles[j]["low"]
+
             for j in range(
                 i - left,
-                i + right + 1
+                i + right + 1,
             )
+
             if j != i
         )
 
         if is_high:
-
             swing_highs.append(
                 current["high"]
             )
 
         if is_low:
-
             swing_lows.append(
                 current["low"]
             )
 
     return (
-        swing_highs[-8:],
-        swing_lows[-8:],
+        swing_highs[-10:],
+        swing_lows[-10:],
     )
 
-
-# ============================================================
-# SUPPORT / RESISTANCE
-# ============================================================
 
 def nearest_levels(
     price,
@@ -867,15 +879,18 @@ def nearest_levels(
 ):
 
     supports = sorted(
+
         [
             x
             for x in swing_lows
             if x < price
         ],
+
         reverse=True,
     )
 
     resistances = sorted(
+
         [
             x
             for x in swing_highs
@@ -884,32 +899,157 @@ def nearest_levels(
     )
 
     return {
-        "support": (
+
+        "support":
             supports[0]
             if supports
-            else None
-        ),
-        "support_2": (
+            else None,
+
+        "support_2":
             supports[1]
             if len(supports) > 1
-            else None
-        ),
-        "resistance": (
+            else None,
+
+        "resistance":
             resistances[0]
             if resistances
-            else None
-        ),
-        "resistance_2": (
+            else None,
+
+        "resistance_2":
             resistances[1]
             if len(resistances) > 1
-            else None
-        ),
+            else None,
     }
 
 
-# ============================================================
-# FAIR VALUE GAPS
-# ============================================================
+def analyze_structure(
+    swing_highs,
+    swing_lows,
+):
+
+    if (
+        len(swing_highs) < 2
+        or len(swing_lows) < 2
+    ):
+
+        return {
+
+            "label":
+                "Insufficient Swing Data",
+
+            "score":
+                0,
+
+            "details":
+                [],
+        }
+
+    last_high = swing_highs[-1]
+    previous_high = swing_highs[-2]
+
+    last_low = swing_lows[-1]
+    previous_low = swing_lows[-2]
+
+    higher_high = (
+        last_high
+        > previous_high
+    )
+
+    higher_low = (
+        last_low
+        > previous_low
+    )
+
+    lower_high = (
+        last_high
+        < previous_high
+    )
+
+    lower_low = (
+        last_low
+        < previous_low
+    )
+
+    details = []
+
+    if higher_high:
+        details.append(
+            "Higher High"
+        )
+
+    elif lower_high:
+        details.append(
+            "Lower High"
+        )
+
+    if higher_low:
+        details.append(
+            "Higher Low"
+        )
+
+    elif lower_low:
+        details.append(
+            "Lower Low"
+        )
+
+    if (
+        higher_high
+        and higher_low
+    ):
+
+        label = (
+            "Bullish Structure"
+        )
+
+        score = 2
+
+    elif (
+        lower_high
+        and lower_low
+    ):
+
+        label = (
+            "Bearish Structure"
+        )
+
+        score = -2
+
+    elif higher_high:
+
+        label = (
+            "Higher-High Structure"
+        )
+
+        score = 1
+
+    elif lower_low:
+
+        label = (
+            "Lower-Low Structure"
+        )
+
+        score = -1
+
+    else:
+
+        label = (
+            "Mixed Structure"
+        )
+
+        score = 0
+
+    return {
+
+        "label":
+            label,
+
+        "score":
+            score,
+
+        "details":
+            details,
+    }
+
 
 def detect_fvg(candles):
 
@@ -917,21 +1057,19 @@ def detect_fvg(candles):
     bearish = []
 
     if len(candles) < 3:
+
         return {
-            "bullish": bullish,
-            "bearish": bearish,
+            "bullish": [],
+            "bearish": [],
         }
 
     for i in range(
         2,
-        len(candles)
+        len(candles),
     ):
 
         first = candles[i - 2]
         third = candles[i]
-
-        # Bullish FVG:
-        # current low > candle two bars earlier high
 
         if (
             third["low"]
@@ -939,14 +1077,13 @@ def detect_fvg(candles):
         ):
 
             bullish.append({
+
                 "low":
                     first["high"],
+
                 "high":
                     third["low"],
             })
-
-        # Bearish FVG:
-        # current high < candle two bars earlier low
 
         if (
             third["high"]
@@ -954,23 +1091,23 @@ def detect_fvg(candles):
         ):
 
             bearish.append({
+
                 "low":
                     third["high"],
+
                 "high":
                     first["low"],
             })
 
     return {
+
         "bullish":
             bullish[-5:],
+
         "bearish":
             bearish[-5:],
     }
 
-
-# ============================================================
-# REJECTION CANDLES
-# ============================================================
 
 def detect_rejection(candles):
 
@@ -1001,31 +1138,36 @@ def detect_rejection(candles):
     )
 
     if body == 0:
-        body = (
-            candle["high"]
-            - candle["low"]
-        ) * 0.01
+
+        body = max(
+            (
+                candle["high"]
+                - candle["low"]
+            )
+            * 0.01,
+            1e-12,
+        )
 
     if (
         lower_wick > body * 2
         and lower_wick > upper_wick
     ):
 
-        return "Bullish Rejection"
+        return (
+            "Bullish Rejection"
+        )
 
     if (
         upper_wick > body * 2
         and upper_wick > lower_wick
     ):
 
-        return "Bearish Rejection"
+        return (
+            "Bearish Rejection"
+        )
 
     return "None"
 
-
-# ============================================================
-# LIQUIDITY SWEEP / TRAP
-# ============================================================
 
 def detect_liquidity_event(
     candles,
@@ -1038,134 +1180,462 @@ def detect_liquidity_event(
 
     current = candles[-1]
 
-    previous_high = (
-        max(swing_highs)
+    resistance = (
+        swing_highs[-1]
         if swing_highs
         else None
     )
 
-    previous_low = (
-        min(swing_lows)
+    support = (
+        swing_lows[-1]
         if swing_lows
         else None
     )
 
-    # Sweep above resistance and close back below
     if (
-        previous_high is not None
+        resistance is not None
         and current["high"]
-        > previous_high
+        > resistance
         and current["close"]
-        < previous_high
+        < resistance
     ):
 
-        return "Bearish Liquidity Sweep"
+        return (
+            "Bearish Liquidity Sweep"
+        )
 
-    # Sweep below support and close back above
     if (
-        previous_low is not None
+        support is not None
         and current["low"]
-        < previous_low
+        < support
         and current["close"]
-        > previous_low
+        > support
     ):
 
-        return "Bullish Liquidity Sweep"
+        return (
+            "Bullish Liquidity Sweep"
+        )
 
     return "None"
 
 
 # ============================================================
-# MARKET STRUCTURE
+# DATA SOURCES
 # ============================================================
 
-def analyze_structure(
-    swing_highs,
-    swing_lows,
+def normalize_binance(rows):
+
+    candles = []
+
+    for row in rows:
+
+        try:
+
+            candles.append({
+
+                "timestamp":
+                    int(row[0]),
+
+                "open":
+                    float(row[1]),
+
+                "high":
+                    float(row[2]),
+
+                "low":
+                    float(row[3]),
+
+                "close":
+                    float(row[4]),
+
+                "volume":
+                    float(row[5]),
+            })
+
+        except Exception:
+
+            continue
+
+    candles.sort(
+        key=lambda x:
+        x["timestamp"]
+    )
+
+    return candles
+
+
+def normalize_coinbase(rows):
+
+    candles = []
+
+    for row in rows:
+
+        try:
+
+            candles.append({
+
+                "timestamp":
+                    int(row[0]) * 1000,
+
+                "open":
+                    float(row[3]),
+
+                "high":
+                    float(row[2]),
+
+                "low":
+                    float(row[1]),
+
+                "close":
+                    float(row[4]),
+
+                "volume":
+                    float(row[5]),
+            })
+
+        except Exception:
+
+            continue
+
+    candles.sort(
+        key=lambda x:
+        x["timestamp"]
+    )
+
+    return candles
+
+
+def get_binance_candles(
+    symbol,
+    interval,
+    limit=250,
 ):
 
-    if (
-        len(swing_highs) < 2
-        or len(swing_lows) < 2
+    try:
+
+        response = requests.get(
+
+            "https://api.binance.com/api/v3/klines",
+
+            params={
+
+                "symbol":
+                    symbol,
+
+                "interval":
+                    interval,
+
+                "limit":
+                    limit,
+            },
+
+            timeout=REQUEST_TIMEOUT,
+
+            headers={
+                "User-Agent":
+                    "SideShiftAI/4.0"
+            },
+        )
+
+        if not response.ok:
+
+            print(
+                "BINANCE ERROR:",
+                symbol,
+                interval,
+                response.status_code,
+                response.text[:300],
+            )
+
+            return []
+
+        data = response.json()
+
+        if not isinstance(
+            data,
+            list,
+        ):
+
+            return []
+
+        return normalize_binance(
+            data
+        )
+
+    except Exception as exc:
+
+        print(
+            "BINANCE REQUEST ERROR:",
+            repr(exc),
+        )
+
+        return []
+
+
+def get_coinbase_candles(
+    product,
+    granularity,
+):
+
+    try:
+
+        url = (
+            "https://api.exchange.coinbase.com/"
+            f"products/{product}/candles"
+        )
+
+        response = requests.get(
+
+            url,
+
+            params={
+                "granularity":
+                    granularity
+            },
+
+            timeout=REQUEST_TIMEOUT,
+
+            headers={
+                "User-Agent":
+                    "SideShiftAI/4.0"
+            },
+        )
+
+        if not response.ok:
+
+            print(
+                "COINBASE ERROR:",
+                product,
+                response.status_code,
+                response.text[:300],
+            )
+
+            return []
+
+        return normalize_coinbase(
+            response.json()
+        )[-300:]
+
+    except Exception as exc:
+
+        print(
+            "COINBASE REQUEST ERROR:",
+            repr(exc),
+        )
+
+        return []
+
+
+def aggregate_candles(
+    candles,
+    seconds,
+):
+
+    if not candles:
+        return []
+
+    groups = {}
+
+    for candle in candles:
+
+        timestamp_seconds = (
+            candle["timestamp"]
+            // 1000
+        )
+
+        bucket = (
+            timestamp_seconds
+            // seconds
+        ) * seconds
+
+        groups.setdefault(
+            bucket,
+            [],
+        ).append(candle)
+
+    result = []
+
+    for bucket in sorted(
+        groups,
     ):
 
-        return {
-            "label": "Insufficient Swing Data",
-            "score": 0,
-        }
+        group = groups[bucket]
 
-    last_high = swing_highs[-1]
-    previous_high = swing_highs[-2]
+        if not group:
+            continue
 
-    last_low = swing_lows[-1]
-    previous_low = swing_lows[-2]
+        result.append({
 
-    higher_high = (
-        last_high
-        > previous_high
+            "timestamp":
+                bucket * 1000,
+
+            "open":
+                group[0]["open"],
+
+            "high":
+                max(
+                    x["high"]
+                    for x in group
+                ),
+
+            "low":
+                min(
+                    x["low"]
+                    for x in group
+                ),
+
+            "close":
+                group[-1]["close"],
+
+            "volume":
+                sum(
+                    x["volume"]
+                    for x in group
+                ),
+        })
+
+    return result
+
+
+def get_market_candles(
+    coin,
+    timeframe,
+):
+
+    (
+        binance_symbol,
+        coinbase_symbol,
+    ) = COINS[coin]
+
+    config = TIMEFRAMES[
+        timeframe
+    ]
+
+    # --------------------------------------------------------
+    # SPECIAL 4H HANDLING
+    # --------------------------------------------------------
+
+    if timeframe == "4h":
+
+        candles = get_binance_candles(
+            binance_symbol,
+            "4h",
+            250,
+        )
+
+        if len(candles) >= 80:
+
+            return (
+                candles,
+                "Binance 4H",
+            )
+
+        one_hour = (
+            get_binance_candles(
+                binance_symbol,
+                "1h",
+                1000,
+            )
+        )
+
+        four_hour = (
+            aggregate_candles(
+                one_hour,
+                14400,
+            )
+        )
+
+        if len(four_hour) >= 80:
+
+            return (
+                four_hour[-250:],
+                "Binance 1H→4H",
+            )
+
+        one_hour = (
+            get_coinbase_candles(
+                coinbase_symbol,
+                3600,
+            )
+        )
+
+        four_hour = (
+            aggregate_candles(
+                one_hour,
+                14400,
+            )
+        )
+
+        if len(four_hour) >= 80:
+
+            return (
+                four_hour[-250:],
+                "Coinbase 1H→4H",
+            )
+
+        return [], None
+
+    # --------------------------------------------------------
+    # NORMAL BINANCE
+    # --------------------------------------------------------
+
+    candles = get_binance_candles(
+
+        binance_symbol,
+
+        config["binance"],
+
+        250,
     )
 
-    higher_low = (
-        last_low
-        > previous_low
+    if len(candles) >= 80:
+
+        return (
+            candles,
+            f"Binance {timeframe}",
+        )
+
+    # --------------------------------------------------------
+    # COINBASE FALLBACK
+    # --------------------------------------------------------
+
+    candles = get_coinbase_candles(
+
+        coinbase_symbol,
+
+        config["seconds"],
     )
 
-    lower_high = (
-        last_high
-        < previous_high
-    )
+    if len(candles) >= 80:
 
-    lower_low = (
-        last_low
-        < previous_low
-    )
+        return (
+            candles,
+            f"Coinbase {timeframe}",
+        )
 
-    if higher_high and higher_low:
-
-        return {
-            "label": "Bullish Structure",
-            "score": 2,
-        }
-
-    if lower_high and lower_low:
-
-        return {
-            "label": "Bearish Structure",
-            "score": -2,
-        }
-
-    if higher_high:
-
-        return {
-            "label": "Higher-High Structure",
-            "score": 1,
-        }
-
-    if lower_low:
-
-        return {
-            "label": "Lower-Low Structure",
-            "score": -1,
-        }
-
-    return {
-        "label": "Mixed Structure",
-        "score": 0,
-    }
+    return [], None
 
 
 # ============================================================
 # TIMEFRAME ANALYSIS
 # ============================================================
 
-def analyze_timeframe(candles):
+def analyze_timeframe(
+    candles,
+):
 
     if len(candles) < 80:
 
         return {
-            "valid": False,
-            "direction": "Data Unavailable",
-            "score": 0,
+
+            "valid":
+                False,
+
+            "direction":
+                "Data Unavailable",
+
+            "score":
+                0,
         }
 
     closes = [
@@ -1236,29 +1706,41 @@ def analyze_timeframe(candles):
         )
 
     swing_highs, swing_lows = (
-        find_swings(candles)
+        find_swings(
+            candles
+        )
     )
 
     levels = nearest_levels(
+
         price,
+
         swing_highs,
+
         swing_lows,
     )
 
     structure = analyze_structure(
+
         swing_highs,
+
         swing_lows,
     )
 
-    fvg = detect_fvg(candles)
+    fvg = detect_fvg(
+        candles
+    )
 
     rejection = detect_rejection(
         candles
     )
 
     liquidity = detect_liquidity_event(
+
         candles,
+
         swing_highs,
+
         swing_lows,
     )
 
@@ -1269,28 +1751,30 @@ def analyze_timeframe(candles):
     )
 
     score = 0
+
     reasons = []
 
     # --------------------------------------------------------
-    # EMA TREND
+    # TREND
     # --------------------------------------------------------
 
-    if (
-        ema20[-1] is not None
-        and price > ema20[-1]
-    ):
+    if ema20[-1] is not None:
 
-        score += 2
-        reasons.append(
-            "Price above EMA20"
-        )
+        if price > ema20[-1]:
 
-    elif ema20[-1] is not None:
+            score += 2
 
-        score -= 2
-        reasons.append(
-            "Price below EMA20"
-        )
+            reasons.append(
+                "Price above EMA20"
+            )
+
+        else:
+
+            score -= 2
+
+            reasons.append(
+                "Price below EMA20"
+            )
 
     if (
         ema20[-1] is not None
@@ -1300,6 +1784,7 @@ def analyze_timeframe(candles):
         if ema20[-1] > ema50[-1]:
 
             score += 2
+
             reasons.append(
                 "EMA20 above EMA50"
             )
@@ -1307,19 +1792,17 @@ def analyze_timeframe(candles):
         else:
 
             score -= 2
+
             reasons.append(
                 "EMA20 below EMA50"
             )
-
-    # --------------------------------------------------------
-    # LONGER TREND
-    # --------------------------------------------------------
 
     if ema200[-1] is not None:
 
         if price > ema200[-1]:
 
             score += 1
+
             reasons.append(
                 "Price above EMA200"
             )
@@ -1327,6 +1810,7 @@ def analyze_timeframe(candles):
         else:
 
             score -= 1
+
             reasons.append(
                 "Price below EMA200"
             )
@@ -1354,31 +1838,36 @@ def analyze_timeframe(candles):
 
     if rsi is not None:
 
-        if 55 <= rsi < 70:
+        if (
+            55 <= rsi < 70
+        ):
 
             score += 1
+
             reasons.append(
                 "RSI bullish momentum"
             )
 
-        elif 30 < rsi <= 45:
+        elif (
+            30 < rsi <= 45
+        ):
 
             score -= 1
+
             reasons.append(
                 "RSI bearish momentum"
             )
 
         elif rsi >= 70:
 
-            # Do not automatically call overbought bearish.
             reasons.append(
-                "RSI overbought"
+                "RSI overbought context"
             )
 
         elif rsi <= 30:
 
             reasons.append(
-                "RSI oversold"
+                "RSI oversold context"
             )
 
     # --------------------------------------------------------
@@ -1390,6 +1879,7 @@ def analyze_timeframe(candles):
         if macd["histogram"] > 0:
 
             score += 1
+
             reasons.append(
                 "MACD positive"
             )
@@ -1397,6 +1887,7 @@ def analyze_timeframe(candles):
         elif macd["histogram"] < 0:
 
             score -= 1
+
             reasons.append(
                 "MACD negative"
             )
@@ -1410,6 +1901,7 @@ def analyze_timeframe(candles):
         if price > vwap:
 
             score += 1
+
             reasons.append(
                 "Price above VWAP"
             )
@@ -1417,6 +1909,7 @@ def analyze_timeframe(candles):
         else:
 
             score -= 1
+
             reasons.append(
                 "Price below VWAP"
             )
@@ -1436,10 +1929,6 @@ def analyze_timeframe(candles):
         elif adx >= 18:
 
             trend_strength = "Developing"
-
-        else:
-
-            trend_strength = "Weak"
 
     # --------------------------------------------------------
     # BOLLINGER
@@ -1501,22 +1990,28 @@ def analyze_timeframe(candles):
     # REJECTION
     # --------------------------------------------------------
 
-    if rejection == "Bullish Rejection":
+    if rejection == (
+        "Bullish Rejection"
+    ):
 
         score += 1
+
         reasons.append(
             "Bullish rejection candle"
         )
 
-    elif rejection == "Bearish Rejection":
+    elif rejection == (
+        "Bearish Rejection"
+    ):
 
         score -= 1
+
         reasons.append(
             "Bearish rejection candle"
         )
 
     # --------------------------------------------------------
-    # LIQUIDITY SWEEP
+    # LIQUIDITY
     # --------------------------------------------------------
 
     if liquidity == (
@@ -1524,6 +2019,7 @@ def analyze_timeframe(candles):
     ):
 
         score += 2
+
         reasons.append(
             "Bullish liquidity sweep"
         )
@@ -1533,12 +2029,13 @@ def analyze_timeframe(candles):
     ):
 
         score -= 2
+
         reasons.append(
             "Bearish liquidity sweep"
         )
 
     # --------------------------------------------------------
-    # FVG CONTEXT
+    # FAIR VALUE GAP
     # --------------------------------------------------------
 
     bullish_fvg_count = len(
@@ -1549,14 +2046,17 @@ def analyze_timeframe(candles):
         fvg["bearish"]
     )
 
-    # Only use FVG as a contextual factor,
-    # not as an automatic buy/sell trigger.
-
-    if bullish_fvg_count > bearish_fvg_count:
+    if (
+        bullish_fvg_count
+        > bearish_fvg_count
+    ):
 
         score += 1
 
-    elif bearish_fvg_count > bullish_fvg_count:
+    elif (
+        bearish_fvg_count
+        > bullish_fvg_count
+    ):
 
         score -= 1
 
@@ -1567,11 +2067,14 @@ def analyze_timeframe(candles):
     if len(closes) >= 12:
 
         change = (
+
             (
                 price
                 - closes[-11]
             )
+
             / closes[-11]
+
         ) * 100
 
         if change > 0.75:
@@ -1583,7 +2086,7 @@ def analyze_timeframe(candles):
             score -= 1
 
     # --------------------------------------------------------
-    # FINAL DIRECTION
+    # FINAL TIMEFRAME DIRECTION
     # --------------------------------------------------------
 
     if score >= 7:
@@ -1604,10 +2107,12 @@ def analyze_timeframe(candles):
 
     else:
 
-        direction = "Consolidation / Mixed"
+        direction = (
+            "Consolidation / Mixed"
+        )
 
     # --------------------------------------------------------
-    # ATR
+    # ATR %
     # --------------------------------------------------------
 
     atr_percent = None
@@ -1618,11 +2123,14 @@ def analyze_timeframe(candles):
     ):
 
         atr_percent = (
-            atr / price
+            atr
+            / price
         ) * 100
 
     return {
-        "valid": True,
+
+        "valid":
+            True,
 
         "direction":
             direction,
@@ -1672,6 +2180,9 @@ def analyze_timeframe(candles):
         "structure":
             structure["label"],
 
+        "structure_details":
+            structure["details"],
+
         "structure_score":
             structure["score"],
 
@@ -1714,394 +2225,12 @@ def analyze_timeframe(candles):
             volume_profile,
 
         "reasons":
-            reasons[-8:],
+            reasons[-10:],
     }
 
 
 # ============================================================
-# BINANCE NORMALIZATION
-# ============================================================
-
-def normalize_binance(rows):
-
-    candles = []
-
-    for row in rows:
-
-        try:
-
-            candles.append({
-                "timestamp":
-                    int(row[0]),
-
-                "open":
-                    float(row[1]),
-
-                "high":
-                    float(row[2]),
-
-                "low":
-                    float(row[3]),
-
-                "close":
-                    float(row[4]),
-
-                "volume":
-                    float(row[5]),
-            })
-
-        except Exception:
-            pass
-
-    candles.sort(
-        key=lambda x:
-        x["timestamp"]
-    )
-
-    return candles
-
-
-# ============================================================
-# COINBASE NORMALIZATION
-# ============================================================
-
-def normalize_coinbase(rows):
-
-    candles = []
-
-    for row in rows:
-
-        try:
-
-            candles.append({
-                "timestamp":
-                    int(row[0]) * 1000,
-
-                "open":
-                    float(row[3]),
-
-                "high":
-                    float(row[2]),
-
-                "low":
-                    float(row[1]),
-
-                "close":
-                    float(row[4]),
-
-                "volume":
-                    float(row[5]),
-            })
-
-        except Exception:
-            pass
-
-    candles.sort(
-        key=lambda x:
-        x["timestamp"]
-    )
-
-    return candles
-
-
-# ============================================================
-# BINANCE CANDLES
-# ============================================================
-
-def get_binance_candles(
-    symbol,
-    interval,
-    limit=250,
-):
-
-    try:
-
-        response = requests.get(
-            "https://api.binance.com/api/v3/klines",
-
-            params={
-                "symbol":
-                    symbol,
-
-                "interval":
-                    interval,
-
-                "limit":
-                    limit,
-            },
-
-            timeout=REQUEST_TIMEOUT,
-
-            headers={
-                "User-Agent":
-                    "SideShiftAI/3.0"
-            },
-        )
-
-        if not response.ok:
-
-            print(
-                "BINANCE ERROR:",
-                symbol,
-                interval,
-                response.status_code,
-                response.text[:300],
-            )
-
-            return []
-
-        data = response.json()
-
-        if not isinstance(data, list):
-
-            return []
-
-        return normalize_binance(
-            data
-        )
-
-    except Exception as e:
-
-        print(
-            "BINANCE REQUEST ERROR:",
-            repr(e),
-        )
-
-        return []
-
-
-# ============================================================
-# COINBASE CANDLES
-# ============================================================
-
-def get_coinbase_candles(
-    product,
-    granularity,
-):
-
-    try:
-
-        url = (
-            "https://api.exchange.coinbase.com/"
-            f"products/{product}/candles"
-        )
-
-        response = requests.get(
-            url,
-
-            params={
-                "granularity":
-                    granularity
-            },
-
-            timeout=REQUEST_TIMEOUT,
-
-            headers={
-                "User-Agent":
-                    "SideShiftAI/3.0"
-            },
-        )
-
-        if not response.ok:
-
-            print(
-                "COINBASE ERROR:",
-                product,
-                response.status_code,
-                response.text[:300],
-            )
-
-            return []
-
-        return normalize_coinbase(
-            response.json()
-        )[-300:]
-
-    except Exception as e:
-
-        print(
-            "COINBASE REQUEST ERROR:",
-            repr(e),
-        )
-
-        return []
-
-
-# ============================================================
-# RESAMPLE 1H -> 4H
-# ============================================================
-
-def aggregate_candles(
-    candles,
-    seconds,
-):
-
-    if not candles:
-        return []
-
-    groups = {}
-
-    for candle in candles:
-
-        timestamp_seconds = (
-            candle["timestamp"]
-            // 1000
-        )
-
-        bucket = (
-            timestamp_seconds
-            // seconds
-        ) * seconds
-
-        groups.setdefault(
-            bucket,
-            []
-        ).append(candle)
-
-    result = []
-
-    for bucket in sorted(
-        groups.keys()
-    ):
-
-        group = groups[bucket]
-
-        if not group:
-            continue
-
-        result.append({
-
-            "timestamp":
-                bucket * 1000,
-
-            "open":
-                group[0]["open"],
-
-            "high":
-                max(
-                    x["high"]
-                    for x in group
-                ),
-
-            "low":
-                min(
-                    x["low"]
-                    for x in group
-                ),
-
-            "close":
-                group[-1]["close"],
-
-            "volume":
-                sum(
-                    x["volume"]
-                    for x in group
-                ),
-        })
-
-    return result
-
-
-# ============================================================
-# MARKET DATA
-# ============================================================
-
-def get_market_candles(
-    coin,
-    timeframe,
-):
-
-    binance_symbol, coinbase_symbol = (
-        COINS[coin]
-    )
-
-    config = TIMEFRAMES[
-        timeframe
-    ]
-
-    interval = config[
-        "binance"
-    ]
-
-    # --------------------------------------------------------
-    # PRIMARY BINANCE
-    # --------------------------------------------------------
-
-    candles = get_binance_candles(
-        binance_symbol,
-        interval,
-        250,
-    )
-
-    if len(candles) >= 80:
-
-        return candles, "Binance"
-
-    # --------------------------------------------------------
-    # 4H SPECIAL FALLBACK
-    # --------------------------------------------------------
-
-    if timeframe == "4h":
-
-        one_hour = get_binance_candles(
-            binance_symbol,
-            "1h",
-            1000,
-        )
-
-        four_hour = aggregate_candles(
-            one_hour,
-            14400,
-        )
-
-        if len(four_hour) >= 80:
-
-            return (
-                four_hour[-250:],
-                "Binance 1H→4H",
-            )
-
-    # --------------------------------------------------------
-    # COINBASE FALLBACK
-    # --------------------------------------------------------
-
-    candles = get_coinbase_candles(
-        coinbase_symbol,
-        config["seconds"],
-    )
-
-    if len(candles) >= 80:
-
-        return candles, "Coinbase"
-
-    # --------------------------------------------------------
-    # COINBASE 1H → 4H FALLBACK
-    # --------------------------------------------------------
-
-    if timeframe == "4h":
-
-        one_hour = get_coinbase_candles(
-            coinbase_symbol,
-            3600,
-        )
-
-        four_hour = aggregate_candles(
-            one_hour,
-            14400,
-        )
-
-        if len(four_hour) >= 80:
-
-            return (
-                four_hour[-250:],
-                "Coinbase 1H→4H",
-            )
-
-    return [], None
-
-
-# ============================================================
-# OPTIONAL TRADINGVIEW DATA
+# TRADINGVIEW OPTIONAL CONTEXT
 # ============================================================
 
 def get_tradingview_confirmation(
@@ -2125,6 +2254,11 @@ def get_tradingview_confirmation(
         - data["received"]
         > 7200
     ):
+
+        TRADINGVIEW_CACHE.pop(
+            key,
+            None,
+        )
 
         return None
 
@@ -2165,18 +2299,24 @@ def scan_coin(coin):
 
         if candles:
 
-            price = candles[-1]["close"]
+            price = (
+                candles[-1]["close"]
+            )
 
     valid = [
+
         (tf, result)
+
         for tf, result
         in results.items()
+
         if result.get("valid")
     ]
 
     if not valid:
 
         return {
+
             "coin":
                 coin,
 
@@ -2190,6 +2330,7 @@ def scan_coin(coin):
                 providers,
 
             "overall": {
+
                 "label":
                     "Data Unavailable",
 
@@ -2197,7 +2338,10 @@ def scan_coin(coin):
                     0,
 
                 "strength":
-                    "Insufficient data",
+                    0,
+
+                "strength_label":
+                    "No usable data",
             },
 
             "valid_count":
@@ -2205,6 +2349,47 @@ def scan_coin(coin):
 
             "total_count":
                 len(TIMEFRAMES),
+
+            "bullish_count":
+                0,
+
+            "bearish_count":
+                0,
+
+            "mixed_count":
+                0,
+
+            "structure":
+                "Unavailable",
+
+            "support":
+                None,
+
+            "support_2":
+                None,
+
+            "resistance":
+                None,
+
+            "resistance_2":
+                None,
+
+            "fvg": {
+                "bullish": [],
+                "bearish": [],
+            },
+
+            "rejection":
+                "N/A",
+
+            "liquidity":
+                "N/A",
+
+            "volume_profile":
+                None,
+
+            "tradingview_context":
+                [],
         }
 
     # ========================================================
@@ -2212,6 +2397,7 @@ def scan_coin(coin):
     # ========================================================
 
     weighted_score = 0
+
     total_weight = 0
 
     for timeframe, result in valid:
@@ -2236,40 +2422,42 @@ def scan_coin(coin):
     # BULL / BEAR DISTRIBUTION
     # ========================================================
 
-    bullish = 0
-    bearish = 0
-    mixed = 0
+    bullish = sum(
 
-    for _, result in valid:
+        1
 
-        direction = result[
-            "direction"
-        ]
+        for _, result in valid
 
-        if "Bullish" in direction:
+        if "Bullish"
+        in result["direction"]
+    )
 
-            bullish += 1
+    bearish = sum(
 
-        elif "Bearish" in direction:
+        1
 
-            bearish += 1
+        for _, result in valid
 
-        else:
+        if "Bearish"
+        in result["direction"]
+    )
 
-            mixed += 1
+    mixed = (
+        len(valid)
+        - bullish
+        - bearish
+    )
 
     count = len(valid)
 
-    # ========================================================
-    # MULTI-TIMEFRAME AGREEMENT
-    # ========================================================
-
     bullish_ratio = (
-        bullish / count
+        bullish
+        / count
     )
 
     bearish_ratio = (
-        bearish / count
+        bearish
+        / count
     )
 
     # ========================================================
@@ -2290,11 +2478,17 @@ def scan_coin(coin):
 
         overall = "Bearish"
 
-    elif average_score >= 2:
+    elif (
+        average_score >= 2
+        and bullish_ratio >= 0.50
+    ):
 
         overall = "Bullish Lean"
 
-    elif average_score <= -2:
+    elif (
+        average_score <= -2
+        and bearish_ratio >= 0.50
+    ):
 
         overall = "Bearish Lean"
 
@@ -2305,59 +2499,91 @@ def scan_coin(coin):
         )
 
     # ========================================================
-    # STRENGTH — NOT A PROBABILITY
+    # EVIDENCE ALIGNMENT
+    #
+    # THIS IS NOT A PROFIT PROBABILITY.
     # ========================================================
 
-    raw_strength = (
-        abs(average_score)
-        / 12
-    ) * 100
+    raw_strength = clamp(
 
-    agreement_bonus = (
-        max(
-            bullish_ratio,
-            bearish_ratio,
-        )
-        * 20
-    )
+        (
+            abs(average_score)
+            / 12
+        ) * 100,
 
-    strength = clamp(
-        raw_strength
-        + agreement_bonus,
         0,
         100,
     )
 
-    if strength >= 75:
+    agreement = max(
+        bullish_ratio,
+        bearish_ratio,
+    )
 
-        strength_label = "Strong"
+    alignment = max(
 
-    elif strength >= 55:
+        0,
 
-        strength_label = "Moderate"
+        (
+            agreement
+            - 0.50
+        )
+        / 0.50,
+    )
 
-    elif strength >= 35:
+    evidence_strength = clamp(
 
-        strength_label = "Developing"
+        raw_strength * 0.70
+        + alignment * 30,
+
+        0,
+        100,
+    )
+
+    if evidence_strength >= 75:
+
+        strength_label = (
+            "High Evidence Alignment"
+        )
+
+    elif evidence_strength >= 55:
+
+        strength_label = (
+            "Moderate Evidence Alignment"
+        )
+
+    elif evidence_strength >= 35:
+
+        strength_label = (
+            "Developing"
+        )
 
     else:
 
-        strength_label = "Weak / Mixed"
+        strength_label = (
+            "Weak / Conflicted"
+        )
 
     # ========================================================
     # AGGREGATES
     # ========================================================
 
     rsi_values = [
+
         result["rsi"]
+
         for _, result in valid
+
         if result.get("rsi")
         is not None
     ]
 
     volume_values = [
+
         result["volume_ratio"]
+
         for _, result in valid
+
         if result.get(
             "volume_ratio"
         )
@@ -2365,8 +2591,11 @@ def scan_coin(coin):
     ]
 
     atr_values = [
+
         result["atr_percent"]
+
         for _, result in valid
+
         if result.get(
             "atr_percent"
         )
@@ -2374,16 +2603,21 @@ def scan_coin(coin):
     ]
 
     adx_values = [
+
         result["adx"]
+
         for _, result in valid
+
         if result.get("adx")
         is not None
     ]
 
     structure_score = mean([
+
         result[
             "structure_score"
         ]
+
         for _, result in valid
     ])
 
@@ -2405,45 +2639,42 @@ def scan_coin(coin):
 
         structure = "Mixed"
 
-    # ========================================================
-    # SUPPORT / RESISTANCE
-    # ========================================================
-
-    latest = valid[-1][1]
-
-    support = latest.get(
-        "support"
+    # Prefer 1H for structure.
+    latest = results.get(
+        "1h"
     )
 
-    resistance = latest.get(
-        "resistance"
-    )
+    if (
+        not latest
+        or not latest.get("valid")
+    ):
 
-    # ========================================================
-    # FVG SUMMARY
-    # ========================================================
+        latest = valid[-1][1]
 
     latest_fvg = latest.get(
         "fvg",
-        {}
+        {},
     )
 
     # ========================================================
-    # TRADINGVIEW OPTIONAL CONTEXT
+    # TRADINGVIEW CONTEXT
     # ========================================================
 
     tv_data = []
 
     for timeframe, _ in valid:
 
-        tv = get_tradingview_confirmation(
-            coin,
-            timeframe,
+        tv = (
+            get_tradingview_confirmation(
+                coin,
+                timeframe,
+            )
         )
 
         if tv:
 
             tv_data.append({
+
                 "timeframe":
                     timeframe,
 
@@ -2451,7 +2682,7 @@ def scan_coin(coin):
                     str(
                         tv.get(
                             "signal",
-                            "UNKNOWN"
+                            "UNKNOWN",
                         )
                     ).upper(),
             })
@@ -2479,7 +2710,7 @@ def scan_coin(coin):
                 average_score,
 
             "strength":
-                strength,
+                evidence_strength,
 
             "strength_label":
                 strength_label,
@@ -2516,10 +2747,24 @@ def scan_coin(coin):
             structure,
 
         "support":
-            support,
+            latest.get(
+                "support"
+            ),
+
+        "support_2":
+            latest.get(
+                "support_2"
+            ),
 
         "resistance":
-            resistance,
+            latest.get(
+                "resistance"
+            ),
+
+        "resistance_2":
+            latest.get(
+                "resistance_2"
+            ),
 
         "fvg":
             latest_fvg,
@@ -2545,57 +2790,11 @@ def scan_coin(coin):
 
 
 # ============================================================
-# PRICE FORMAT
-# ============================================================
-
-def format_price(price):
-
-    if price is None:
-        return "Unavailable"
-
-    if price >= 1000:
-        return f"${price:,.2f}"
-
-    if price >= 1:
-        return f"${price:,.4f}"
-
-    if price >= 0.01:
-        return f"${price:,.6f}"
-
-    return f"${price:,.10f}"
-
-
-def format_level(price):
-
-    if price is None:
-        return "N/A"
-
-    return format_price(price)
-
-
-def direction_emoji(direction):
-
-    if direction == "Bullish":
-        return "🟢"
-
-    if direction == "Bearish":
-        return "🔴"
-
-    if "Bullish" in direction:
-        return "🟩"
-
-    if "Bearish" in direction:
-        return "🟥"
-
-    return "🟡"
-
-
-# ============================================================
-# SCAN MESSAGE
+# TELEGRAM SCAN MESSAGE
 # ============================================================
 
 def build_scan_message(
-    analysis
+    analysis,
 ):
 
     coin = analysis[
@@ -2622,9 +2821,9 @@ def build_scan_message(
         f"{overall['label']}",
 
         f"📊 <b>Analysis Score:</b> "
-        f"{overall['score']:.2f}",
+        f"{overall['score']:+.2f}",
 
-        f"🎯 <b>Evidence Strength:</b> "
+        f"🎯 <b>Evidence Alignment:</b> "
         f"{overall['strength']:.0f}% "
         f"({overall['strength_label']})",
 
@@ -2651,7 +2850,9 @@ def build_scan_message(
 
         provider = analysis[
             "providers"
-        ].get(timeframe)
+        ].get(
+            timeframe
+        )
 
         if provider:
 
@@ -2661,9 +2862,12 @@ def build_scan_message(
 
         else:
 
-            provider_text = ""
+            provider_text = (
+                " • NO DATA"
+            )
 
         lines.append(
+
             f"{direction_emoji(direction)} "
             f"<b>{timeframe}:</b> "
             f"{direction} "
@@ -2671,9 +2875,38 @@ def build_scan_message(
             f"{provider_text}"
         )
 
-    # --------------------------------------------------------
-    # MARKET STRUCTURE
-    # --------------------------------------------------------
+    # ========================================================
+    # STRUCTURE
+    # ========================================================
+
+    one_hour = analysis[
+        "timeframes"
+    ].get(
+        "1h",
+        {},
+    )
+
+    if not one_hour.get(
+        "valid"
+    ):
+
+        one_hour = {}
+
+    structure_details = one_hour.get(
+        "structure_details",
+        [],
+    )
+
+    structure_detail_text = (
+
+        ", ".join(
+            structure_details
+        )
+
+        if structure_details
+
+        else "N/A"
+    )
 
     lines += [
 
@@ -2684,30 +2917,31 @@ def build_scan_message(
         f"🧱 <b>Structure:</b> "
         f"{analysis['structure']}",
 
+        f"🔍 <b>Swing Read:</b> "
+        f"{html.escape(structure_detail_text)}",
+
         f"📉 <b>Support:</b> "
         f"{format_level(analysis['support'])}",
+
+        f"📉 <b>Support 2:</b> "
+        f"{format_level(analysis['support_2'])}",
 
         f"📈 <b>Resistance:</b> "
         f"{format_level(analysis['resistance'])}",
 
+        f"📈 <b>Resistance 2:</b> "
+        f"{format_level(analysis['resistance_2'])}",
+
         f"🔺 <b>Latest Swing High:</b> "
-        f"{format_level("
-        f"analysis['timeframes']["
-        f"'1h'"
-        f"].get('swing_high')"
-        f")}",
+        f"{format_level(one_hour.get('swing_high'))}",
 
         f"🔻 <b>Latest Swing Low:</b> "
-        f"{format_level("
-        f"analysis['timeframes']["
-        f"'1h'"
-        f"].get('swing_low')"
-        f")}",
+        f"{format_level(one_hour.get('swing_low'))}",
     ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # LIQUIDITY / TRAPS
-    # --------------------------------------------------------
+    # ========================================================
 
     lines += [
 
@@ -2722,9 +2956,9 @@ def build_scan_message(
         f"{analysis['rejection']}",
     ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # FVG
-    # --------------------------------------------------------
+    # ========================================================
 
     fvg = analysis[
         "fvg"
@@ -2743,9 +2977,9 @@ def build_scan_message(
         f"{len(fvg.get('bearish', []))}",
     ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # MARKET CONDITIONS
-    # --------------------------------------------------------
+    # ========================================================
 
     rsi = analysis.get(
         "average_rsi"
@@ -2772,7 +3006,9 @@ def build_scan_message(
         (
             f"📉 <b>RSI:</b> "
             f"{rsi:.1f}"
+
             if rsi is not None
+
             else
             "📉 <b>RSI:</b> N/A"
         ),
@@ -2780,7 +3016,9 @@ def build_scan_message(
         (
             f"📦 <b>Relative Volume:</b> "
             f"{volume:.2f}x"
+
             if volume is not None
+
             else
             "📦 <b>Relative Volume:</b> N/A"
         ),
@@ -2788,7 +3026,9 @@ def build_scan_message(
         (
             f"🌊 <b>ATR:</b> "
             f"{atr:.2f}%"
+
             if atr is not None
+
             else
             "🌊 <b>ATR:</b> N/A"
         ),
@@ -2796,15 +3036,17 @@ def build_scan_message(
         (
             f"📐 <b>ADX:</b> "
             f"{adx:.1f}"
+
             if adx is not None
+
             else
             "📐 <b>ADX:</b> N/A"
         ),
     ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # VOLUME PROFILE
-    # --------------------------------------------------------
+    # ========================================================
 
     vp = analysis.get(
         "volume_profile"
@@ -2819,22 +3061,21 @@ def build_scan_message(
         (
             f"🎯 <b>Approx. POC:</b> "
             f"{format_level(vp['poc'])}"
+
             if vp
+
             else
             "🎯 <b>POC:</b> N/A"
         ),
     ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # TRADINGVIEW
-    # --------------------------------------------------------
+    # ========================================================
 
     tv_context = analysis.get(
         "tradingview_context"
     )
-
-    # We ONLY display this section when actual
-    # TradingView webhook data exists.
 
     if tv_context:
 
@@ -2848,13 +3089,14 @@ def build_scan_message(
         for item in tv_context:
 
             lines.append(
+
                 f"• {item['timeframe']}: "
                 f"{html.escape(item['signal'])}"
             )
 
-    # --------------------------------------------------------
+    # ========================================================
     # DATA QUALITY
-    # --------------------------------------------------------
+    # ========================================================
 
     lines += [
 
@@ -2868,13 +3110,17 @@ def build_scan_message(
         "",
 
         "⚠️ <b>Important:</b> "
-        "Analysis strength is not a probability "
-        "of profit. The engine weighs multiple "
-        "technical conditions and can remain "
-        "mixed when the evidence conflicts.",
+        "Evidence alignment is NOT "
+        "a probability of profit. "
+        "The engine compares multiple "
+        "technical conditions and can "
+        "return <b>Consolidation / Mixed</b> "
+        "when the evidence conflicts.",
     ]
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )
 
 
 # ============================================================
@@ -2883,14 +3129,17 @@ def build_scan_message(
 
 def perform_scan(
     coin,
-    chat_id
+    chat_id,
 ):
 
     if coin not in COINS:
 
         send_telegram(
+
             "❌ Unsupported cryptocurrency.",
+
             chat_id,
+
             main_menu(),
         )
 
@@ -2899,7 +3148,8 @@ def perform_scan(
     send_telegram(
 
         (
-            f"<b>🔎 Deep-scanning {coin}...</b>\n\n"
+            f"<b>🔎 Deep-scanning "
+            f"{html.escape(coin)}...</b>\n\n"
 
             "📡 Live market data\n"
             "📈 EMA trend\n"
@@ -2928,30 +3178,35 @@ def perform_scan(
         )
 
         send_telegram(
+
             build_scan_message(
                 analysis
             ),
+
             chat_id,
+
             scan_menu(),
         )
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "SCAN ERROR:",
-            repr(e),
+            repr(exc),
         )
 
         send_telegram(
 
             (
                 "<b>⚠️ SCAN ERROR</b>\n\n"
+
                 f"<code>"
-                f"{html.escape(str(e))}"
+                f"{html.escape(str(exc))}"
                 f"</code>"
             ),
 
             chat_id,
+
             scan_menu(),
         )
 
@@ -2965,6 +3220,7 @@ def get_crypto_news():
     try:
 
         feed = feedparser.parse(
+
             "https://news.google.com/rss/"
             "search?q=cryptocurrency+crypto+"
             "bitcoin+ethereum"
@@ -2976,11 +3232,14 @@ def get_crypto_news():
         )
 
         for number, item in enumerate(
+
             feed.entries[:8],
+
             1,
         ):
 
             title = html.escape(
+
                 item.get(
                     "title",
                     "",
@@ -2988,24 +3247,34 @@ def get_crypto_news():
             )
 
             link = html.escape(
+
                 item.get(
                     "link",
                     "",
                 ),
+
                 quote=True,
             )
 
             message += (
+
                 f'<b>{number}.</b> '
+
                 f'<a href="{link}">'
                 f'{title}</a>\n\n'
             )
 
         return message
 
-    except Exception:
+    except Exception as exc:
+
+        print(
+            "NEWS ERROR:",
+            repr(exc),
+        )
 
         return (
+
             "<b>📰 NEWS</b>\n\n"
             "News unavailable."
         )
@@ -3015,12 +3284,14 @@ def get_crypto_news():
 # WELCOME
 # ============================================================
 
-def send_welcome(chat_id):
+def send_welcome(
+    chat_id,
+):
 
     send_telegram(
 
         (
-            "<b>🤖 SIDESHIFT AI 3.0</b>\n\n"
+            "<b>🤖 SIDESHIFT AI 4.0</b>\n\n"
 
             "Deep multi-timeframe cryptocurrency "
             "market analysis.\n\n"
@@ -3045,10 +3316,14 @@ def send_welcome(chat_id):
             "The engine evaluates both "
             "<b>bullish AND bearish</b> evidence "
             "and can remain mixed when conditions "
-            "do not agree."
+            "conflict.\n\n"
+
+            "TradingView is optional extra context; "
+            "it is not required for the core scan."
         ),
 
         chat_id,
+
         main_menu(),
     )
 
@@ -3057,7 +3332,9 @@ def send_welcome(chat_id):
 # HELP
 # ============================================================
 
-def send_help(chat_id):
+def send_help(
+    chat_id,
+):
 
     send_telegram(
 
@@ -3069,17 +3346,21 @@ def send_help(chat_id):
 
             "5m • 15m • 1h • 4h • 1D\n\n"
 
-            "It evaluates trend, momentum, "
-            "volume, volatility, market structure, "
-            "swings, support/resistance, liquidity "
-            "events, rejection candles, fair-value "
-            "gaps and volume distribution.\n\n"
+            "It evaluates trend, momentum, volume, "
+            "volatility, market structure, swings, "
+            "support/resistance, liquidity events, "
+            "rejection candles, fair-value gaps "
+            "and volume distribution.\n\n"
 
-            "TradingView alerts can also be accepted "
-            "as an optional additional context source."
+            "4H data can be built from 1H candles "
+            "when direct 4H data is unavailable.\n\n"
+
+            "TradingView alerts are optional "
+            "additional context."
         ),
 
         chat_id,
+
         main_menu(),
     )
 
@@ -3088,17 +3369,21 @@ def send_help(chat_id):
 # VIP
 # ============================================================
 
-def send_vip(chat_id):
+def send_vip(
+    chat_id,
+):
 
     send_telegram(
 
         (
             "<b>👑 SIDESHIFT AI VIP</b>\n\n"
+
             "VIP signal features are "
             "not enabled yet."
         ),
 
         chat_id,
+
         main_menu(),
     )
 
@@ -3165,8 +3450,11 @@ def telegram_webhook():
             ):
 
                 send_telegram(
+
                     get_crypto_news(),
+
                     chat_id,
+
                     main_menu(),
                 )
 
@@ -3182,6 +3470,7 @@ def telegram_webhook():
 
                         (
                             "<b>📊 SCAN</b>\n\n"
+
                             "Examples:\n"
                             "/scan BTC\n"
                             "/scan ETH\n"
@@ -3190,13 +3479,16 @@ def telegram_webhook():
                         ),
 
                         chat_id,
+
                         main_menu(),
                     )
 
                 else:
 
                     perform_scan(
+
                         parts[1].upper(),
+
                         chat_id,
                     )
 
@@ -3210,6 +3502,7 @@ def telegram_webhook():
                     ),
 
                     chat_id,
+
                     main_menu(),
                 )
 
@@ -3227,8 +3520,8 @@ def telegram_webhook():
 
         if callback:
 
-            callback_id = callback.get(
-                "id"
+            answer_callback(
+                callback.get("id")
             )
 
             callback_data = callback.get(
@@ -3243,13 +3536,9 @@ def telegram_webhook():
                 .get("id")
             )
 
-            answer_callback(
-                callback_id
-            )
-
-            # MUST COME BEFORE scan_*
-
-            if callback_data == "scan_menu":
+            if callback_data == (
+                "scan_menu"
+            ):
 
                 send_telegram(
 
@@ -3259,6 +3548,7 @@ def telegram_webhook():
                     ),
 
                     chat_id,
+
                     main_menu(),
                 )
 
@@ -3271,17 +3561,22 @@ def telegram_webhook():
             ):
 
                 coin = (
+
                     callback_data
+
                     .replace(
                         "scan_",
                         "",
                         1,
                     )
+
                     .upper()
                 )
 
                 perform_scan(
+
                     coin,
+
                     chat_id,
                 )
 
@@ -3306,8 +3601,11 @@ def telegram_webhook():
             ):
 
                 send_telegram(
+
                     get_crypto_news(),
+
                     chat_id,
+
                     main_menu(),
                 )
 
@@ -3343,16 +3641,21 @@ def telegram_webhook():
             "ok": True
         })
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "TELEGRAM WEBHOOK ERROR:",
-            repr(e),
+            repr(exc),
         )
 
         return jsonify({
-            "ok": False,
-            "error": str(e),
+
+            "ok":
+                False,
+
+            "error":
+                str(exc),
+
         }), 500
 
 
@@ -3382,8 +3685,10 @@ def tradingview_webhook():
         ):
 
             return jsonify({
+
                 "error":
                     "Unauthorized"
+
             }), 401
 
         symbol = str(
@@ -3400,10 +3705,18 @@ def tradingview_webhook():
             )
         ).strip()
 
+        signal = str(
+            data.get(
+                "signal",
+                "UNKNOWN",
+            )
+        ).upper()
+
         symbol = (
             symbol
             .replace(".P", "")
             .replace("/", "")
+            .replace(" ", "")
         )
 
         if symbol.endswith(
@@ -3421,27 +3734,26 @@ def tradingview_webhook():
         if symbol not in COINS:
 
             return jsonify({
+
                 "error":
                     "Unsupported symbol",
+
                 "symbol":
                     symbol,
+
             }), 400
 
         if timeframe not in TIMEFRAMES:
 
             return jsonify({
+
                 "error":
                     "Unsupported timeframe",
+
                 "timeframe":
                     timeframe,
-            }), 400
 
-        signal = str(
-            data.get(
-                "signal",
-                "UNKNOWN",
-            )
-        ).upper()
+            }), 400
 
         TRADINGVIEW_CACHE[
             f"{symbol}:{timeframe}"
@@ -3461,24 +3773,8 @@ def tradingview_webhook():
             signal,
         )
 
-        # Optional notification.
-        # This does NOT affect the core analysis.
-
-        if TELEGRAM_CHAT_ID:
-
-            send_telegram(
-
-                (
-                    "<b>📡 TRADINGVIEW DATA RECEIVED</b>\n\n"
-                    f"<b>{html.escape(symbol)}</b>\n"
-                    f"Timeframe: "
-                    f"{html.escape(timeframe)}\n"
-                    f"Signal: "
-                    f"<b>{html.escape(signal)}</b>"
-                ),
-
-                TELEGRAM_CHAT_ID,
-            )
+        # TradingView is supplemental only.
+        # No automatic Telegram message is sent here.
 
         return jsonify({
 
@@ -3495,21 +3791,23 @@ def tradingview_webhook():
                 signal,
         })
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "TRADINGVIEW ERROR:",
-            repr(e),
+            repr(exc),
         )
 
         return jsonify({
+
             "error":
-                str(e)
+                str(exc)
+
         }), 500
 
 
 # ============================================================
-# HOME
+# HOME / HEALTH
 # ============================================================
 
 @app.route(
@@ -3527,7 +3825,7 @@ def home():
             "SideShift AI",
 
         "version":
-            "3.0",
+            "4.0",
 
         "telegram_webhook":
             "/telegram-webhook",
@@ -3547,21 +3845,41 @@ def home():
         "features": [
 
             "EMA",
+
             "RSI",
+
             "MACD",
+
             "ADX",
+
             "VWAP",
+
             "ATR",
+
             "Volume",
+
             "Volume Profile",
+
             "Swing Highs",
+
             "Swing Lows",
+
+            "Market Structure",
+
             "Support",
+
             "Resistance",
+
             "Fair Value Gaps",
+
             "Liquidity Sweeps",
+
             "Rejection Candles",
+
             "Multi-Timeframe Analysis",
+
+            "4H 1H Aggregation Fallback",
+
             "Optional TradingView Context",
         ],
     })
@@ -3575,7 +3893,9 @@ def home():
     "/test-market/<coin>",
     methods=["GET"],
 )
-def test_market(coin):
+def test_market(
+    coin,
+):
 
     coin = coin.upper()
 
@@ -3594,21 +3914,28 @@ def test_market(coin):
     try:
 
         return jsonify(
-            scan_coin(coin)
+            scan_coin(
+                coin
+            )
         )
 
-    except Exception as e:
+    except Exception as exc:
+
+        print(
+            "MARKET TEST ERROR:",
+            repr(exc),
+        )
 
         return jsonify({
 
             "error":
-                str(e),
+                str(exc),
 
         }), 500
 
 
 # ============================================================
-# SET TELEGRAM WEBHOOK
+# TELEGRAM WEBHOOK SETUP
 # ============================================================
 
 def setup_telegram_webhook():
@@ -3624,9 +3951,34 @@ def setup_telegram_webhook():
 
         return False
 
+    domain = (
+        RAILWAY_PUBLIC_DOMAIN
+        .strip()
+    )
+
+    if domain.startswith(
+        "https://"
+    ):
+
+        domain = domain[
+            len("https://"):
+        ]
+
+    elif domain.startswith(
+        "http://"
+    ):
+
+        domain = domain[
+            len("http://"):
+        ]
+
+    domain = domain.rstrip(
+        "/"
+    )
+
     webhook_url = (
         f"https://"
-        f"{RAILWAY_PUBLIC_DOMAIN}"
+        f"{domain}"
         "/telegram-webhook"
     )
 
@@ -3643,7 +3995,9 @@ def setup_telegram_webhook():
                     webhook_url,
 
                 "allowed_updates": [
+
                     "message",
+
                     "callback_query",
                 ],
 
@@ -3655,18 +4009,21 @@ def setup_telegram_webhook():
         )
 
         print(
+
             "WEBHOOK SET:",
+
             response.status_code,
+
             response.text,
         )
 
         return response.ok
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "WEBHOOK SET ERROR:",
-            repr(e),
+            repr(exc),
         )
 
         return False
@@ -3683,7 +4040,7 @@ if __name__ == "__main__":
     )
 
     print(
-        "SideShift AI 3.0 starting..."
+        "SideShift AI 4.0 starting..."
     )
 
     print(
@@ -3691,28 +4048,43 @@ if __name__ == "__main__":
     )
 
     print(
+
         "Telegram:",
+
         "FOUND"
+
         if TELEGRAM_BOT_TOKEN
-        else "MISSING",
+
+        else
+
+        "MISSING",
     )
 
     print(
+
         "Railway domain:",
+
         RAILWAY_PUBLIC_DOMAIN
         or "MISSING",
     )
 
     print(
+
         "Telegram chat:",
+
         "FOUND"
+
         if TELEGRAM_CHAT_ID
-        else "MISSING",
+
+        else
+
+        "MISSING",
     )
 
     setup_telegram_webhook()
 
     port = int(
+
         os.getenv(
             "PORT",
             "8080",
@@ -3720,6 +4092,8 @@ if __name__ == "__main__":
     )
 
     app.run(
+
         host="0.0.0.0",
+
         port=port,
     )
