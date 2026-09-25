@@ -2406,6 +2406,27 @@ def send_free_info(chat_id):
 
     return send_telegram(
         (
+            "<b>🟢 WELCOME TO SIDESHIFT AI FREE SIGNALS</b>\n\n"
+            "You're one step away from joining our free signal channel.\n\n"
+            "You'll receive a limited number of high-confluence "
+            "crypto setups selected by the SideShift AI signal engine.\n\n"
+            "Tap the button below to join the free channel. 👇"
+        ),
+        chat_id,
+        {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "🚀 JOIN FREE CHANNEL",
+                        "url": "https://t.me/" + FREE_CHANNEL.lstrip("@")
+                    }
+                ]
+            ]
+        },
+    )
+
+    return send_telegram(
+        (
             "<b>🟢 SIDESHIFT AI FREE SIGNALS</b>\n\n"
             "The free channel receives a limited "
             "number of high-confluence setups.\n\n"
