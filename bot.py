@@ -2404,7 +2404,7 @@ def send_help(chat_id):
 
 def send_free_info(chat_id):
 
-    return send_telegram(
+   send_telegram(
         (
             "<b>🟢 WELCOME TO SIDESHIFT AI FREE SIGNALS</b>\n\n"
             "You're one step away from joining our free signal channel.\n\n"
@@ -2424,7 +2424,6 @@ def send_free_info(chat_id):
             ]
         },
     )
-
     return send_telegram(
         (
             "<b>🟢 SIDESHIFT AI FREE SIGNALS</b>\n\n"
