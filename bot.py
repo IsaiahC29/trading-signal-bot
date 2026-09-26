@@ -26,6 +26,18 @@ RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
+# Telegram username/link for the FREE channel.
+#
+# Examples:
+#
+# FREE_CHANNEL=@SideShiftFree
+#
+# OR
+#
+# FREE_CHANNEL=https://t.me/SideShiftFree
+#
+FREE_CHANNEL = os.getenv("FREE_CHANNEL", "")
+
 # Optional Telegram channel for FREE signals.
 FREE_SIGNAL_CHAT_ID = os.getenv("FREE_SIGNAL_CHAT_ID", "")
 
@@ -38,32 +50,40 @@ PORT = int(os.getenv("PORT", "8080"))
 
 REQUEST_TIMEOUT = 15
 
-# How often the background engine checks the market.
+
+# ============================================================
+# SIGNAL SETTINGS
+# ============================================================
+
 SIGNAL_SCAN_INTERVAL = int(
     os.getenv("SIGNAL_SCAN_INTERVAL", "30")
 ) * 60
 
-# Maximum free signals per UTC day.
 MAX_FREE_SIGNALS_PER_DAY = int(
     os.getenv("MAX_FREE_SIGNALS_PER_DAY", "3")
 )
 
-# Minimum score required before a free signal can be sent.
 MIN_SIGNAL_SCORE = float(
     os.getenv("MIN_SIGNAL_SCORE", "7.0")
 )
 
-# Minimum minutes between signals for the same coin.
 SIGNAL_COOLDOWN_MINUTES = int(
     os.getenv("SIGNAL_COOLDOWN_MINUTES", "180")
 )
 
-# News interval.
+
+# ============================================================
+# NEWS SETTINGS
+# ============================================================
+
 NEWS_INTERVAL = int(
-    os.getenv("NEWS_INTERVAL", "360"
-)
+    os.getenv("NEWS_INTERVAL", "360")
 ) * 60
 
+
+# ============================================================
+# TELEGRAM API
+# ============================================================
 
 TELEGRAM_API = (
     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
@@ -86,17 +106,19 @@ TELEGRAM_API = (
 #
 # Price fallback:
 #   CoinMarketCap
-#
-# The bot does NOT depend exclusively on Binance.
 # ============================================================
 
 COINBASE_CANDLES_URL = (
     "https://api.exchange.coinbase.com/products/{product}/candles"
 )
 
-KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
+KRAKEN_OHLC_URL = (
+    "https://api.kraken.com/0/public/OHLC"
+)
 
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
+BINANCE_KLINES_URL = (
+    "https://api.binance.com/api/v3/klines"
+)
 
 CMC_PRICE_URL = (
     "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
@@ -275,7 +297,10 @@ def send_telegram(message, chat_id, keyboard=None):
         return response.ok
 
     except Exception as exc:
-        print("TELEGRAM ERROR:", repr(exc))
+        print(
+            "TELEGRAM ERROR:",
+            repr(exc),
+        )
         return False
 
 
@@ -291,8 +316,12 @@ def answer_callback(callback_id):
             },
             timeout=10,
         )
+
     except Exception as exc:
-        print("CALLBACK ERROR:", repr(exc))
+        print(
+            "CALLBACK ERROR:",
+            repr(exc),
+        )
 
 
 # ============================================================
@@ -379,7 +408,10 @@ def scan_menu():
 # ============================================================
 
 def clamp(value, minimum, maximum):
-    return max(minimum, min(maximum, value))
+    return max(
+        minimum,
+        min(maximum, value),
+    )
 
 
 def ema(values, period):
@@ -390,7 +422,10 @@ def ema(values, period):
 
     result = [None] * len(values)
 
-    previous = sum(values[:period]) / period
+    previous = (
+        sum(values[:period])
+        / period
+    )
 
     result[period - 1] = previous
 
@@ -413,13 +448,28 @@ def calculate_rsi(closes, period=14):
     losses = []
 
     for i in range(1, len(closes)):
-        change = closes[i] - closes[i - 1]
+        change = (
+            closes[i]
+            - closes[i - 1]
+        )
 
-        gains.append(max(change, 0))
-        losses.append(max(-change, 0))
+        gains.append(
+            max(change, 0)
+        )
 
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
+        losses.append(
+            max(-change, 0)
+        )
+
+    avg_gain = (
+        sum(gains[:period])
+        / period
+    )
+
+    avg_loss = (
+        sum(losses[:period])
+        / period
+    )
 
     for i in range(period, len(gains)):
         avg_gain = (
@@ -437,7 +487,9 @@ def calculate_rsi(closes, period=14):
 
     rs = avg_gain / avg_loss
 
-    return 100 - (100 / (1 + rs))
+    return 100 - (
+        100 / (1 + rs)
+    )
 
 
 def calculate_atr(candles, period=14):
@@ -449,14 +501,19 @@ def calculate_atr(candles, period=14):
     for i in range(1, len(candles)):
         candle = candles[i]
 
-        previous_close = candles[i - 1]["close"]
+        previous_close = (
+            candles[i - 1]["close"]
+        )
 
         tr = max(
-            candle["high"] - candle["low"],
+            candle["high"]
+            - candle["low"],
+
             abs(
                 candle["high"]
                 - previous_close
             ),
+
             abs(
                 candle["low"]
                 - previous_close
@@ -465,11 +522,15 @@ def calculate_atr(candles, period=14):
 
         true_ranges.append(tr)
 
-    atr = sum(
-        true_ranges[:period]
-    ) / period
+    atr = (
+        sum(true_ranges[:period])
+        / period
+    )
 
-    for i in range(period, len(true_ranges)):
+    for i in range(
+        period,
+        len(true_ranges),
+    ):
         atr = (
             atr * (period - 1)
             + true_ranges[i]
@@ -482,18 +543,27 @@ def calculate_macd(closes):
     if len(closes) < 50:
         return None
 
-    ema12 = ema(closes, 12)
-    ema26 = ema(closes, 26)
+    ema12 = ema(
+        closes,
+        12,
+    )
+
+    ema26 = ema(
+        closes,
+        26,
+    )
 
     macd_values = []
 
     for i in range(len(closes)):
+
         if (
             ema12[i] is not None
             and ema26[i] is not None
         ):
             macd_values.append(
-                ema12[i] - ema26[i]
+                ema12[i]
+                - ema26[i]
             )
 
     if len(macd_values) < 9:
@@ -508,6 +578,7 @@ def calculate_macd(closes):
         return None
 
     value = macd_values[-1]
+
     signal = signal_values[-1]
 
     return {
@@ -525,7 +596,9 @@ def normalize_coinbase(rows):
     candles = []
 
     for row in rows:
+
         try:
+
             candles.append({
                 "timestamp": int(row[0]) * 1000,
                 "low": float(row[1]),
@@ -534,6 +607,7 @@ def normalize_coinbase(rows):
                 "close": float(row[4]),
                 "volume": float(row[5]),
             })
+
         except Exception:
             continue
 
@@ -548,15 +622,21 @@ def normalize_kraken(rows):
     candles = []
 
     for row in rows:
+
         try:
+
             candles.append({
-                "timestamp": int(float(row[0])) * 1000,
+                "timestamp": int(
+                    float(row[0])
+                ) * 1000,
+
                 "open": float(row[1]),
                 "high": float(row[2]),
                 "low": float(row[3]),
                 "close": float(row[4]),
                 "volume": float(row[6]),
             })
+
         except Exception:
             continue
 
@@ -571,7 +651,9 @@ def normalize_binance(rows):
     candles = []
 
     for row in rows:
+
         try:
+
             candles.append({
                 "timestamp": int(row[0]),
                 "open": float(row[1]),
@@ -580,6 +662,7 @@ def normalize_binance(rows):
                 "close": float(row[4]),
                 "volume": float(row[5]),
             })
+
         except Exception:
             continue
 
@@ -591,7 +674,7 @@ def normalize_binance(rows):
 
 
 # ============================================================
-# PROVIDER 1 — COINBASE
+# COINBASE
 # ============================================================
 
 def get_coinbase_candles(
@@ -599,27 +682,34 @@ def get_coinbase_candles(
     granularity,
     limit=200,
 ):
+
     try:
+
         response = requests.get(
             COINBASE_CANDLES_URL.format(
                 product=product
             ),
+
             params={
                 "granularity": granularity,
             },
+
             timeout=REQUEST_TIMEOUT,
+
             headers={
                 "User-Agent": "SideShiftAI/3.0"
             },
         )
 
         if response.status_code != 200:
+
             print(
                 "COINBASE ERROR:",
                 product,
                 granularity,
                 response.status_code,
             )
+
             return []
 
         data = response.json()
@@ -627,46 +717,57 @@ def get_coinbase_candles(
         if not isinstance(data, list):
             return []
 
-        candles = normalize_coinbase(data)
+        candles = normalize_coinbase(
+            data
+        )
 
         return candles[-limit:]
 
     except Exception as exc:
+
         print(
             "COINBASE REQUEST ERROR:",
             repr(exc),
         )
+
         return []
 
 
 # ============================================================
-# PROVIDER 2 — KRAKEN
+# KRAKEN
 # ============================================================
 
 def get_kraken_candles(
     pair,
     interval,
 ):
+
     try:
+
         response = requests.get(
             KRAKEN_OHLC_URL,
+
             params={
                 "pair": pair,
                 "interval": interval,
             },
+
             timeout=REQUEST_TIMEOUT,
+
             headers={
                 "User-Agent": "SideShiftAI/3.0"
             },
         )
 
         if response.status_code != 200:
+
             print(
                 "KRAKEN ERROR:",
                 pair,
                 interval,
                 response.status_code,
             )
+
             return []
 
         payload = response.json()
@@ -676,6 +777,7 @@ def get_kraken_candles(
                 "KRAKEN API ERROR:",
                 payload["error"],
             )
+
             return []
 
         result = payload.get(
@@ -686,6 +788,7 @@ def get_kraken_candles(
         rows = None
 
         for key, value in result.items():
+
             if key != "last":
                 rows = value
                 break
@@ -693,18 +796,22 @@ def get_kraken_candles(
         if not rows:
             return []
 
-        return normalize_kraken(rows)
+        return normalize_kraken(
+            rows
+        )
 
     except Exception as exc:
+
         print(
             "KRAKEN REQUEST ERROR:",
             repr(exc),
         )
+
         return []
 
 
 # ============================================================
-# PROVIDER 3 — BINANCE
+# BINANCE
 # ============================================================
 
 def get_binance_candles(
@@ -712,27 +819,34 @@ def get_binance_candles(
     interval,
     limit=200,
 ):
+
     try:
+
         response = requests.get(
             BINANCE_KLINES_URL,
+
             params={
                 "symbol": symbol,
                 "interval": interval,
                 "limit": limit,
             },
+
             timeout=REQUEST_TIMEOUT,
+
             headers={
                 "User-Agent": "SideShiftAI/3.0"
             },
         )
 
         if response.status_code != 200:
+
             print(
                 "BINANCE ERROR:",
                 symbol,
                 interval,
                 response.status_code,
             )
+
             return []
 
         data = response.json()
@@ -740,13 +854,17 @@ def get_binance_candles(
         if not isinstance(data, list):
             return []
 
-        return normalize_binance(data)
+        return normalize_binance(
+            data
+        )
 
     except Exception as exc:
+
         print(
             "BINANCE REQUEST ERROR:",
             repr(exc),
         )
+
         return []
 
 
@@ -758,11 +876,13 @@ def get_market_candles(
     coin,
     timeframe,
 ):
+
     config = COINS[coin]
+
     tf = TIMEFRAMES[timeframe]
 
     # --------------------------------------------------------
-    # 1. Coinbase
+    # Coinbase
     # --------------------------------------------------------
 
     candles = get_coinbase_candles(
@@ -774,7 +894,7 @@ def get_market_candles(
         return candles, "Coinbase"
 
     # --------------------------------------------------------
-    # 2. Kraken
+    # Kraken
     # --------------------------------------------------------
 
     candles = get_kraken_candles(
@@ -786,9 +906,7 @@ def get_market_candles(
         return candles, "Kraken"
 
     # --------------------------------------------------------
-    # 3. Binance
-    #
-    # Used only as a tertiary fallback.
+    # Binance fallback
     # --------------------------------------------------------
 
     candles = get_binance_candles(
@@ -807,20 +925,25 @@ def get_market_candles(
 # ============================================================
 
 def get_cmc_price(symbol):
+
     if not CMC_API_KEY:
         return None
 
     try:
+
         response = requests.get(
             CMC_PRICE_URL,
+
             params={
                 "symbol": symbol,
                 "convert": "USD",
             },
+
             headers={
                 "X-CMC_PRO_API_KEY": CMC_API_KEY,
                 "User-Agent": "SideShiftAI/3.0",
             },
+
             timeout=REQUEST_TIMEOUT,
         )
 
@@ -847,10 +970,12 @@ def get_cmc_price(symbol):
         )
 
     except Exception as exc:
+
         print(
             "CMC ERROR:",
             repr(exc),
         )
+
         return None
 
 
@@ -863,6 +988,7 @@ def pivot_points(
     left=3,
     right=3,
 ):
+
     highs = []
     lows = []
 
@@ -873,6 +999,7 @@ def pivot_points(
         left,
         len(candles) - right,
     ):
+
         high = candles[i]["high"]
         low = candles[i]["low"]
 
@@ -881,24 +1008,37 @@ def pivot_points(
         ]
 
         if high == max(
-            c["high"] for c in nearby
+            c["high"]
+            for c in nearby
         ):
-            highs.append((i, high))
+            highs.append(
+                (i, high)
+            )
 
         if low == min(
-            c["low"] for c in nearby
+            c["low"]
+            for c in nearby
         ):
-            lows.append((i, low))
+            lows.append(
+                (i, low)
+            )
 
     return highs, lows
 
 
 def calculate_structure(candles):
+
     recent = candles[-100:]
 
-    highs, lows = pivot_points(recent)
+    highs, lows = pivot_points(
+        recent
+    )
 
-    if len(highs) < 2 or len(lows) < 2:
+    if (
+        len(highs) < 2
+        or len(lows) < 2
+    ):
+
         return {
             "label": "Unknown",
             "score": 0,
@@ -912,29 +1052,48 @@ def calculate_structure(candles):
     previous_low = lows[-2][1]
     latest_low = lows[-1][1]
 
-    higher_high = latest_high > previous_high
-    higher_low = latest_low > previous_low
+    higher_high = (
+        latest_high
+        > previous_high
+    )
 
-    lower_high = latest_high < previous_high
-    lower_low = latest_low < previous_low
+    higher_low = (
+        latest_low
+        > previous_low
+    )
+
+    lower_high = (
+        latest_high
+        < previous_high
+    )
+
+    lower_low = (
+        latest_low
+        < previous_low
+    )
 
     if higher_high and higher_low:
+
         label = "Bullish Structure"
         score = 3
 
     elif lower_high and lower_low:
+
         label = "Bearish Structure"
         score = -3
 
     elif higher_high or higher_low:
+
         label = "Bullish Lean"
         score = 1
 
     elif lower_high or lower_low:
+
         label = "Bearish Lean"
         score = -1
 
     else:
+
         label = "Mixed / Sideways"
         score = 0
 
@@ -951,7 +1110,9 @@ def calculate_structure(candles):
 # ============================================================
 
 def analyze_timeframe(candles):
+
     if len(candles) < 60:
+
         return {
             "valid": False,
             "direction": "Data Unavailable",
@@ -981,6 +1142,7 @@ def analyze_timeframe(candles):
     )
 
     ema20 = ema20_series[-1]
+
     ema50 = ema50_series[-1]
 
     ema200 = (
@@ -998,25 +1160,40 @@ def analyze_timeframe(candles):
     # --------------------------------------------------------
 
     if ema20 is not None:
+
         if price > ema20:
+
             score += 1
+
             evidence.append(
                 "price_above_ema20"
             )
+
         else:
+
             score -= 1
+
             evidence.append(
                 "price_below_ema20"
             )
 
-    if ema20 is not None and ema50 is not None:
+    if (
+        ema20 is not None
+        and ema50 is not None
+    ):
+
         if ema20 > ema50:
+
             score += 2
+
             evidence.append(
                 "ema20_above_ema50"
             )
+
         else:
+
             score -= 2
+
             evidence.append(
                 "ema20_below_ema50"
             )
@@ -1028,13 +1205,19 @@ def analyze_timeframe(candles):
     )
 
     if long_ema is not None:
+
         if price > long_ema:
+
             score += 2
+
             evidence.append(
                 "price_above_long_ema"
             )
+
         else:
+
             score -= 2
+
             evidence.append(
                 "price_below_long_ema"
             )
@@ -1047,11 +1230,14 @@ def analyze_timeframe(candles):
         len(ema20_series) >= 8
         and ema20_series[-8] is not None
     ):
+
         if (
             ema20_series[-1]
             > ema20_series[-8]
         ):
+
             score += 1
+
             evidence.append(
                 "ema20_rising"
             )
@@ -1060,7 +1246,9 @@ def analyze_timeframe(candles):
             ema20_series[-1]
             < ema20_series[-8]
         ):
+
             score -= 1
+
             evidence.append(
                 "ema20_falling"
             )
@@ -1069,31 +1257,40 @@ def analyze_timeframe(candles):
     # RSI
     # --------------------------------------------------------
 
-    rsi = calculate_rsi(closes)
+    rsi = calculate_rsi(
+        closes
+    )
 
     if rsi is not None:
 
         if 55 <= rsi <= 70:
+
             score += 2
+
             evidence.append(
                 "rsi_bullish"
             )
 
         elif 30 <= rsi <= 45:
+
             score -= 2
+
             evidence.append(
                 "rsi_bearish"
             )
 
         elif rsi > 75:
-            # Avoid blindly calling extreme RSI bullish.
+
             score -= 1
+
             evidence.append(
                 "rsi_extreme_high"
             )
 
         elif rsi < 25:
+
             score += 1
+
             evidence.append(
                 "rsi_extreme_low"
             )
@@ -1102,18 +1299,24 @@ def analyze_timeframe(candles):
     # MACD
     # --------------------------------------------------------
 
-    macd = calculate_macd(closes)
+    macd = calculate_macd(
+        closes
+    )
 
     if macd:
 
         if macd["histogram"] > 0:
+
             score += 2
+
             evidence.append(
                 "macd_positive"
             )
 
         elif macd["histogram"] < 0:
+
             score -= 2
+
             evidence.append(
                 "macd_negative"
             )
@@ -1129,36 +1332,49 @@ def analyze_timeframe(candles):
         if previous != 0:
 
             momentum = (
-                (price - previous)
+                (
+                    price
+                    - previous
+                )
                 / previous
             ) * 100
 
         else:
+
             momentum = 0
 
     else:
+
         momentum = 0
 
     if momentum >= 0.5:
+
         score += 2
+
         evidence.append(
             "momentum_up"
         )
 
     elif momentum >= 0.15:
+
         score += 1
+
         evidence.append(
             "momentum_up_weak"
         )
 
     elif momentum <= -0.5:
+
         score -= 2
+
         evidence.append(
             "momentum_down"
         )
 
     elif momentum <= -0.15:
+
         score -= 1
+
         evidence.append(
             "momentum_down_weak"
         )
@@ -1196,13 +1412,17 @@ def analyze_timeframe(candles):
             )
 
             if candle_move > 0:
+
                 score += 1
+
                 evidence.append(
                     "volume_confirms_up"
                 )
 
             elif candle_move < 0:
+
                 score -= 1
+
                 evidence.append(
                     "volume_confirms_down"
                 )
@@ -1211,7 +1431,9 @@ def analyze_timeframe(candles):
     # ATR
     # --------------------------------------------------------
 
-    atr = calculate_atr(candles)
+    atr = calculate_atr(
+        candles
+    )
 
     atr_percent = (
         (atr / price) * 100
@@ -1238,24 +1460,31 @@ def analyze_timeframe(candles):
     # --------------------------------------------------------
 
     if score >= 8:
+
         direction = "Strong Bullish"
 
     elif score >= 4:
+
         direction = "Bullish"
 
     elif score >= 2:
+
         direction = "Bullish Lean"
 
     elif score <= -8:
+
         direction = "Strong Bearish"
 
     elif score <= -4:
+
         direction = "Bearish"
 
     elif score <= -2:
+
         direction = "Bearish Lean"
 
     else:
+
         direction = "Consolidation"
 
     # --------------------------------------------------------
@@ -1263,18 +1492,23 @@ def analyze_timeframe(candles):
     # --------------------------------------------------------
 
     if volume_ratio is None:
+
         volume_label = "Unknown"
 
     elif volume_ratio >= 1.75:
+
         volume_label = "Very High"
 
     elif volume_ratio >= 1.25:
+
         volume_label = "Above Average"
 
     elif volume_ratio >= 0.80:
+
         volume_label = "Normal"
 
     else:
+
         volume_label = "Below Average"
 
     # --------------------------------------------------------
@@ -1282,18 +1516,23 @@ def analyze_timeframe(candles):
     # --------------------------------------------------------
 
     if atr_percent is None:
+
         volatility = "Unknown"
 
     elif atr_percent >= 4:
+
         volatility = "Very High"
 
     elif atr_percent >= 2:
+
         volatility = "High"
 
     elif atr_percent >= 0.75:
+
         volatility = "Moderate"
 
     else:
+
         volatility = "Low"
 
     return {
@@ -1322,7 +1561,10 @@ def analyze_timeframe(candles):
 # TRADINGVIEW
 # ============================================================
 
-def tv_key(symbol, timeframe):
+def tv_key(
+    symbol,
+    timeframe,
+):
     return (
         f"{symbol.upper()}:{timeframe}"
     )
@@ -1332,6 +1574,7 @@ def get_tv_signal(
     symbol,
     timeframe,
 ):
+
     item = TRADINGVIEW_CACHE.get(
         tv_key(
             symbol,
@@ -1342,7 +1585,6 @@ def get_tv_signal(
     if not item:
         return None
 
-    # TradingView data expires after 2 hours.
     if (
         time.time()
         - item["received_at"]
@@ -1357,11 +1599,15 @@ def apply_tradingview(
     result,
     tv,
 ):
+
     if not tv:
         return result
 
     signal = str(
-        tv.get("signal", "")
+        tv.get(
+            "signal",
+            "",
+        )
     ).upper()
 
     if signal in (
@@ -1369,6 +1615,7 @@ def apply_tradingview(
         "LONG",
         "BULLISH",
     ):
+
         result["score"] += 2
 
     elif signal in (
@@ -1376,10 +1623,14 @@ def apply_tradingview(
         "SHORT",
         "BEARISH",
     ):
+
         result["score"] -= 2
 
     result["tradingview"] = {
-        "signal": signal or "N/A",
+        "signal": (
+            signal
+            or "N/A"
+        ),
         "received": True,
     }
 
@@ -1391,6 +1642,7 @@ def apply_tradingview(
 # ============================================================
 
 def scan_coin(coin):
+
     if coin not in COINS:
         return None
 
@@ -1402,13 +1654,16 @@ def scan_coin(coin):
 
     for timeframe in TIMEFRAMES:
 
-        candles, provider = get_market_candles(
-            coin,
-            timeframe,
+        candles, provider = (
+            get_market_candles(
+                coin,
+                timeframe,
+            )
         )
 
         providers[timeframe] = (
-            provider or "Unavailable"
+            provider
+            or "Unavailable"
         )
 
         result = analyze_timeframe(
@@ -1435,11 +1690,13 @@ def scan_coin(coin):
 
     valid_results = [
         result
-        for result in timeframe_results.values()
+        for result
+        in timeframe_results.values()
         if result.get("valid")
     ]
 
     if price is None:
+
         price = get_cmc_price(
             COINS[coin]["cmc"]
         )
@@ -1456,7 +1713,9 @@ def scan_coin(coin):
             "timeframes": timeframe_results,
             "providers": providers,
             "valid_count": 0,
-            "total_count": len(TIMEFRAMES),
+            "total_count": len(
+                TIMEFRAMES
+            ),
             "overall": {
                 "label": "Data Unavailable",
                 "score": 0,
@@ -1474,9 +1733,10 @@ def scan_coin(coin):
 
     total_weight = 0
 
-    for timeframe, result in (
-        timeframe_results.items()
-    ):
+    for (
+        timeframe,
+        result,
+    ) in timeframe_results.items():
 
         if not result.get("valid"):
             continue
@@ -1493,7 +1753,8 @@ def scan_coin(coin):
         total_weight += weight
 
     average_score = (
-        weighted_score / total_weight
+        weighted_score
+        / total_weight
         if total_weight
         else 0
     )
@@ -1516,7 +1777,9 @@ def scan_coin(coin):
         in result["direction"]
     )
 
-    total = len(valid_results)
+    total = len(
+        valid_results
+    )
 
     bullish_ratio = (
         bullish / total
@@ -1538,39 +1801,45 @@ def scan_coin(coin):
         bullish_ratio >= 0.75
         and average_score >= 4
     ):
+
         overall_label = "Bullish"
 
     elif (
         bearish_ratio >= 0.75
         and average_score <= -4
     ):
+
         overall_label = "Bearish"
 
     elif (
         bullish_ratio >= 0.60
         and average_score >= 2.5
     ):
+
         overall_label = "Bullish Lean"
 
     elif (
         bearish_ratio >= 0.60
         and average_score <= -2.5
     ):
+
         overall_label = "Bearish Lean"
 
     elif max(
         bullish_ratio,
         bearish_ratio,
     ) < 0.50:
+
         overall_label = "Indecisive"
 
     else:
+
         overall_label = "Consolidation"
 
     # --------------------------------------------------------
     # CONFIDENCE
     #
-    # This is an analysis-strength score.
+    # This represents analysis strength.
     # It is NOT a probability of profit.
     # --------------------------------------------------------
 
@@ -1583,7 +1852,6 @@ def scan_coin(coin):
         100,
     )
 
-    # Agreement bonus.
     agreement = max(
         bullish_ratio,
         bearish_ratio,
@@ -1623,18 +1891,23 @@ def scan_coin(coin):
     ]
 
     if "Very High" in volume_labels:
+
         volume = "Very High"
 
     elif "Above Average" in volume_labels:
+
         volume = "Above Average"
 
     elif "Normal" in volume_labels:
+
         volume = "Normal"
 
     elif "Below Average" in volume_labels:
+
         volume = "Below Average"
 
     else:
+
         volume = "Unknown"
 
     volatility_labels = [
@@ -1643,18 +1916,23 @@ def scan_coin(coin):
     ]
 
     if "Very High" in volatility_labels:
+
         volatility = "Very High"
 
     elif "High" in volatility_labels:
+
         volatility = "High"
 
     elif "Moderate" in volatility_labels:
+
         volatility = "Moderate"
 
     elif "Low" in volatility_labels:
+
         volatility = "Low"
 
     else:
+
         volatility = "Unknown"
 
     structures = [
@@ -1674,17 +1952,26 @@ def scan_coin(coin):
         if "Bearish" in value
     )
 
-    if bullish_structure > bearish_structure:
+    if (
+        bullish_structure
+        > bearish_structure
+    ):
+
         structure = "Bullish"
 
-    elif bearish_structure > bullish_structure:
+    elif (
+        bearish_structure
+        > bullish_structure
+    ):
+
         structure = "Bearish"
 
     else:
+
         structure = "Mixed / Sideways"
 
     # --------------------------------------------------------
-    # SIGNAL ENGINE
+    # SIGNAL
     # --------------------------------------------------------
 
     signal = build_signal(
@@ -1693,8 +1980,12 @@ def scan_coin(coin):
         score=average_score,
         confidence=confidence,
         agreement=agreement,
-        valid_count=len(valid_results),
-        total_count=len(TIMEFRAMES),
+        valid_count=len(
+            valid_results
+        ),
+        total_count=len(
+            TIMEFRAMES
+        ),
         structure=structure,
         volatility=volatility,
     )
@@ -1704,8 +1995,12 @@ def scan_coin(coin):
         "price": price,
         "timeframes": timeframe_results,
         "providers": providers,
-        "valid_count": len(valid_results),
-        "total_count": len(TIMEFRAMES),
+        "valid_count": len(
+            valid_results
+        ),
+        "total_count": len(
+            TIMEFRAMES
+        ),
         "overall": {
             "label": overall_label,
             "score": average_score,
@@ -1743,53 +2038,51 @@ def build_signal(
     structure,
     volatility,
 ):
-    # Never produce a signal from partial/weak data.
 
     if valid_count < 4:
         return None
 
-    # Strong timeframe agreement required.
-
     if agreement < 0.75:
         return None
 
-    # Minimum analysis strength.
-
     if confidence < 65:
         return None
-
-    # Strong directional score required.
 
     if abs(score) < MIN_SIGNAL_SCORE:
         return None
 
     if label == "Bullish":
+
         direction = "CALL / LONG"
 
     elif label == "Bearish":
+
         direction = "PUT / SHORT"
 
     else:
+
         return None
 
-    # Avoid issuing signals during very high volatility.
     if volatility == "Very High":
         return None
 
-    # Structure must agree.
-
     if direction == "CALL / LONG":
+
         if structure != "Bullish":
             return None
 
     if direction == "PUT / SHORT":
+
         if structure != "Bearish":
             return None
 
     return {
         "coin": coin,
         "direction": direction,
-        "score": round(score, 2),
+        "score": round(
+            score,
+            2,
+        ),
         "analysis_strength": round(
             confidence,
             1,
@@ -1810,6 +2103,7 @@ def build_signal(
 # ============================================================
 
 def format_price(price):
+
     if price is None:
         return "Unavailable"
 
@@ -1826,6 +2120,7 @@ def format_price(price):
 
 
 def direction_emoji(direction):
+
     if "Bullish" in direction:
         return "🟢"
 
@@ -1841,24 +2136,30 @@ def direction_emoji(direction):
     return "⚪"
 
 
-def build_interpretation(analysis):
+def build_interpretation(
+    analysis
+):
+
     label = analysis[
         "overall"
     ]["label"]
 
     if label == "Bullish":
+
         return (
             "Multiple timeframes are aligned "
             "to the bullish side."
         )
 
     if label == "Bearish":
+
         return (
             "Multiple timeframes are aligned "
             "to the bearish side."
         )
 
     if label == "Bullish Lean":
+
         return (
             "Bullish evidence exists, but "
             "alignment is not strong enough "
@@ -1866,6 +2167,7 @@ def build_interpretation(analysis):
         )
 
     if label == "Bearish Lean":
+
         return (
             "Bearish evidence exists, but "
             "alignment is not strong enough "
@@ -1873,12 +2175,14 @@ def build_interpretation(analysis):
         )
 
     if label == "Consolidation":
+
         return (
             "The market is relatively balanced "
             "and lacks strong directional alignment."
         )
 
     if label == "Indecisive":
+
         return (
             "The timeframes are conflicting."
         )
@@ -1889,7 +2193,10 @@ def build_interpretation(analysis):
     )
 
 
-def build_scan_message(analysis):
+def build_scan_message(
+    analysis
+):
+
     coin = analysis["coin"]
 
     overall = analysis["overall"]
@@ -1898,16 +2205,21 @@ def build_scan_message(analysis):
 
     message = (
         f"<b>🔎 {coin} MARKET ANALYSIS</b>\n\n"
+
         f"💰 <b>Price:</b> "
         f"{format_price(analysis['price'])}\n\n"
+
         f"{direction_emoji(label)} "
         f"<b>Overall:</b> {label}\n"
+
         f"🎯 <b>Analysis Strength:</b> "
         f"{overall['confidence']:.0f}%\n"
+
         f"📡 <b>Data Quality:</b> "
         f"{analysis['data_quality']} "
         f"({analysis['valid_count']}/"
         f"{analysis['total_count']})\n\n"
+
         "<b>📊 TIMEFRAME ALIGNMENT</b>\n"
     )
 
@@ -1948,15 +2260,22 @@ def build_scan_message(analysis):
 
     message += (
         "\n<b>📈 MARKET CONDITIONS</b>\n"
+
         f"📉 RSI: {rsi_text}\n"
+
         f"📦 Volume: "
         f"{analysis['volume']}\n"
+
         f"🌊 Volatility: "
         f"{analysis['volatility']}\n"
+
         f"🧱 Structure: "
         f"{analysis['structure']}\n\n"
+
         "<b>🧠 INTERPRETATION</b>\n"
+
         f"{build_interpretation(analysis)}\n\n"
+
         "<i>Analysis only. "
         "No market outcome is guaranteed.</i>"
     )
@@ -1969,8 +2288,9 @@ def build_scan_message(analysis):
 # ============================================================
 
 def build_signal_message(
-    analysis,
+    analysis
 ):
+
     signal = analysis["signal"]
 
     if not signal:
@@ -1988,26 +2308,34 @@ def build_signal_message(
 
     if direction == "CALL / LONG":
         emoji = "🟢"
-
     else:
         emoji = "🔴"
 
     return (
         "<b>🚨 SIDESHIFT AI — FREE SIGNAL</b>\n\n"
+
         f"{emoji} <b>{coin}</b>\n"
+
         f"📍 <b>Direction:</b> "
         f"{direction}\n"
+
         f"💰 <b>Current Price:</b> "
         f"{price}\n\n"
+
         f"🎯 <b>Analysis Strength:</b> "
         f"{signal['analysis_strength']:.0f}%\n"
+
         f"📊 <b>Timeframe Agreement:</b> "
         f"{signal['agreement']:.0f}%\n"
+
         f"🧱 <b>Structure:</b> "
         f"{analysis['structure']}\n"
+
         f"🌊 <b>Volatility:</b> "
         f"{analysis['volatility']}\n\n"
+
         "<b>⚠️ HIGH-CONFLUENCE SETUP</b>\n\n"
+
         "<i>This is market analysis, not a "
         "guarantee of profit. Manage risk.</i>"
     )
@@ -2018,19 +2346,33 @@ def build_signal_message(
 # ============================================================
 
 def reset_signal_day():
+
     today = datetime.now(
         timezone.utc
     ).date().isoformat()
 
     with STATE_LOCK:
 
-        if SIGNAL_STATE["date"] != today:
+        if (
+            SIGNAL_STATE["date"]
+            != today
+        ):
+
             SIGNAL_STATE["date"] = today
-            SIGNAL_STATE["sent_today"] = 0
-            SIGNAL_STATE["last_signal"] = {}
+
+            SIGNAL_STATE[
+                "sent_today"
+            ] = 0
+
+            SIGNAL_STATE[
+                "last_signal"
+            ] = {}
 
 
-def signal_is_on_cooldown(coin):
+def signal_is_on_cooldown(
+    coin
+):
+
     reset_signal_day()
 
     with STATE_LOCK:
@@ -2049,11 +2391,15 @@ def signal_is_on_cooldown(coin):
 
         return (
             elapsed
-            < SIGNAL_COOLDOWN_MINUTES * 60
+            < SIGNAL_COOLDOWN_MINUTES
+            * 60
         )
 
 
-def mark_signal_sent(coin):
+def mark_signal_sent(
+    coin
+):
+
     reset_signal_day()
 
     with STATE_LOCK:
@@ -2068,9 +2414,11 @@ def mark_signal_sent(coin):
 
 
 def can_send_free_signal():
+
     reset_signal_day()
 
     with STATE_LOCK:
+
         return (
             SIGNAL_STATE[
                 "sent_today"
@@ -2084,6 +2432,7 @@ def can_send_free_signal():
 # ============================================================
 
 def find_best_signal():
+
     best = None
 
     print(
@@ -2130,6 +2479,7 @@ def find_best_signal():
                     "analysis_strength"
                 ]
             ):
+
                 best = analysis
 
         except Exception as exc:
@@ -2141,6 +2491,7 @@ def find_best_signal():
             )
 
     if best:
+
         print(
             "BEST SIGNAL:",
             best["coin"],
@@ -2148,6 +2499,7 @@ def find_best_signal():
         )
 
     else:
+
         print(
             "NO HIGH-CONFLUENCE SIGNAL."
         )
@@ -2160,6 +2512,7 @@ def find_best_signal():
 # ============================================================
 
 def signal_loop():
+
     print(
         "SideShift signal engine started."
     )
@@ -2203,7 +2556,8 @@ def signal_loop():
                 else:
 
                     print(
-                        "Daily free signal limit reached."
+                        "Daily free signal "
+                        "limit reached."
                     )
 
             else:
@@ -2230,6 +2584,7 @@ def signal_loop():
 # ============================================================
 
 def get_crypto_news():
+
     feed_url = (
         "https://news.google.com/rss/search?"
         "q=cryptocurrency+crypto+bitcoin+ethereum"
@@ -2265,7 +2620,9 @@ def get_crypto_news():
 
                 articles.append(
                     (
-                        html.unescape(title),
+                        html.unescape(
+                            title
+                        ),
                         link,
                         published,
                     )
@@ -2305,6 +2662,7 @@ def get_crypto_news():
         )
 
         if published:
+
             message += (
                 f"<i>{html.escape(published)}</i>\n"
             )
@@ -2315,6 +2673,7 @@ def get_crypto_news():
 
 
 def news_loop():
+
     print(
         "SideShift news engine started."
     )
@@ -2335,7 +2694,8 @@ def news_loop():
             else:
 
                 print(
-                    "NEWS_CHAT_ID not configured."
+                    "NEWS_CHAT_ID "
+                    "not configured."
                 )
 
         except Exception as exc:
@@ -2354,12 +2714,16 @@ def news_loop():
 # WELCOME
 # ============================================================
 
-def send_welcome(chat_id):
+def send_welcome(
+    chat_id
+):
 
     return send_telegram(
         (
             "<b>🤖 SIDESHIFT AI</b>\n\n"
+
             "24/7 crypto market analysis engine.\n\n"
+
             "<b>Market engine:</b>\n"
             "📈 EMA 20 / 50 / 200\n"
             "📉 RSI\n"
@@ -2368,10 +2732,12 @@ def send_welcome(chat_id):
             "🌊 ATR volatility\n"
             "🧱 Market structure\n"
             "⏱ Multi-timeframe alignment\n\n"
+
             "<b>Market data:</b>\n"
             "1️⃣ Coinbase\n"
             "2️⃣ Kraken\n"
             "3️⃣ Binance fallback\n\n"
+
             "The engine does not assume a trade "
             "when market data is insufficient."
         ),
@@ -2380,20 +2746,26 @@ def send_welcome(chat_id):
     )
 
 
-def send_help(chat_id):
+def send_help(
+    chat_id
+):
 
     return send_telegram(
         (
             "<b>ℹ️ HOW SIDESHIFT AI WORKS</b>\n\n"
+
             "SideShift analyzes multiple "
             "cryptocurrencies across several "
             "timeframes.\n\n"
+
             "It checks trend, momentum, RSI, "
             "MACD, volume, volatility and "
             "market structure.\n\n"
+
             "The signal engine requires "
             "multiple conditions to agree "
             "before producing a signal.\n\n"
+
             "If the data is weak or conflicting, "
             "the engine can return NO SIGNAL."
         ),
@@ -2402,50 +2774,121 @@ def send_help(chat_id):
     )
 
 
-def send_free_info(chat_id):
+# ============================================================
+# FREE CHANNEL INFO
+# ============================================================
 
-   send_telegram(
-        (
-            "<b>🟢 WELCOME TO SIDESHIFT AI FREE SIGNALS</b>\n\n"
-            "You're one step away from joining our free signal channel.\n\n"
-            "You'll receive a limited number of high-confluence "
-            "crypto setups selected by the SideShift AI signal engine.\n\n"
-            "Tap the button below to join the free channel. 👇"
-        ),
-        chat_id,
-        {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": "🚀 JOIN FREE CHANNEL",
-                        "url": "https://t.me/" + FREE_CHANNEL.lstrip("@")
-                    }
-                ]
-            ]
-        },
+def get_free_channel_url():
+
+    if not FREE_CHANNEL:
+        return None
+
+    channel = FREE_CHANNEL.strip()
+
+    if channel.startswith(
+        "https://t.me/"
+    ):
+        return channel
+
+    if channel.startswith(
+        "http://t.me/"
+    ):
+        return (
+            "https://"
+            + channel[7:]
+        )
+
+    if channel.startswith("@"):
+
+        return (
+            "https://t.me/"
+            + channel[1:]
+        )
+
+    return (
+        "https://t.me/"
+        + channel
     )
+
+
+def send_free_info(
+    chat_id
+):
+
+    channel_url = (
+        get_free_channel_url()
+    )
+
+    if channel_url:
+
+        keyboard = [
+            [
+                {
+                    "text": (
+                        "🚀 JOIN FREE CHANNEL"
+                    ),
+                    "url": channel_url,
+                }
+            ],
+            [
+                {
+                    "text": "⬅️ Main Menu",
+                    "callback_data": (
+                        "main_menu"
+                    ),
+                }
+            ],
+        ]
+
+        return send_telegram(
+            (
+                "<b>🟢 SIDESHIFT AI "
+                "FREE SIGNALS</b>\n\n"
+
+                "You're one step away from "
+                "joining our free signal channel.\n\n"
+
+                "You'll receive a limited number "
+                "of high-confluence crypto setups "
+                "selected by the SideShift AI "
+                "signal engine.\n\n"
+
+                "Tap the button below to join "
+                "the free channel. 👇"
+            ),
+            chat_id,
+            keyboard,
+        )
+
     return send_telegram(
         (
-            "<b>🟢 SIDESHIFT AI FREE SIGNALS</b>\n\n"
-            "The free channel receives a limited "
-            "number of high-confluence setups.\n\n"
-            "The engine scans the supported market "
-            "automatically and selects the strongest "
-            "qualifying setup.\n\n"
-            "No signal is forced when market "
-            "conditions do not meet the rules."
+            "<b>🟢 SIDESHIFT AI "
+            "FREE SIGNALS</b>\n\n"
+
+            "The free signal channel is "
+            "currently being configured.\n\n"
+
+            "Please check back shortly."
         ),
         chat_id,
         main_menu(),
     )
 
 
-def send_vip(chat_id):
+# ============================================================
+# VIP
+# ============================================================
+
+def send_vip(
+    chat_id
+):
 
     return send_telegram(
         (
             "<b>👑 SIDESHIFT AI VIP</b>\n\n"
+
             "VIP signal features are being built.\n\n"
+
             "The current engine already supports "
             "multi-timeframe market analysis and "
             "high-confluence signal detection."
@@ -2477,6 +2920,7 @@ def perform_scan(
     send_telegram(
         (
             f"<b>🔎 SCANNING {coin}</b>\n\n"
+
             "Collecting market data...\n"
             "Checking multiple providers...\n"
             "Analyzing 5m / 15m / 1h / 4h / 1D...\n"
@@ -2521,8 +2965,10 @@ def perform_scan(
         send_telegram(
             (
                 "<b>⚠️ SCAN ERROR</b>\n\n"
+
                 "The scanner encountered an "
                 "internal error.\n\n"
+
                 "No signal was assumed."
             ),
             chat_id,
@@ -2576,6 +3022,7 @@ def telegram_webhook():
             ).strip()
 
             if not chat_id:
+
                 return jsonify({
                     "ok": True
                 })
@@ -2617,6 +3064,7 @@ def telegram_webhook():
                     send_telegram(
                         (
                             "<b>📊 SCAN</b>\n\n"
+
                             "Example:\n"
                             "/scan BTC"
                         ),
@@ -2686,15 +3134,16 @@ def telegram_webhook():
                 callback_data,
             )
 
-            # IMPORTANT:
-            # scan_menu must be checked
-            # before scan_*.
+            # ------------------------------------------------
+            # SCAN MENU
+            # ------------------------------------------------
 
             if callback_data == "scan_menu":
 
                 send_telegram(
                     (
                         "<b>📊 SELECT A COIN</b>\n\n"
+
                         "Choose a cryptocurrency "
                         "to analyze."
                     ),
@@ -2705,6 +3154,10 @@ def telegram_webhook():
                 return jsonify({
                     "ok": True
                 })
+
+            # ------------------------------------------------
+            # SCAN COIN
+            # ------------------------------------------------
 
             if callback_data.startswith(
                 "scan_"
@@ -2729,6 +3182,10 @@ def telegram_webhook():
                     "ok": True
                 })
 
+            # ------------------------------------------------
+            # MAIN MENU
+            # ------------------------------------------------
+
             if callback_data == "main_menu":
 
                 send_welcome(
@@ -2738,6 +3195,10 @@ def telegram_webhook():
                 return jsonify({
                     "ok": True
                 })
+
+            # ------------------------------------------------
+            # NEWS
+            # ------------------------------------------------
 
             if callback_data == "news_all":
 
@@ -2751,6 +3212,10 @@ def telegram_webhook():
                     "ok": True
                 })
 
+            # ------------------------------------------------
+            # HELP
+            # ------------------------------------------------
+
             if callback_data == "help":
 
                 send_help(
@@ -2761,6 +3226,10 @@ def telegram_webhook():
                     "ok": True
                 })
 
+            # ------------------------------------------------
+            # FREE SIGNALS
+            # ------------------------------------------------
+
             if callback_data == "free_signals":
 
                 send_free_info(
@@ -2770,6 +3239,10 @@ def telegram_webhook():
                 return jsonify({
                     "ok": True
                 })
+
+            # ------------------------------------------------
+            # VIP
+            # ------------------------------------------------
 
             if callback_data == "vip":
 
@@ -2826,6 +3299,7 @@ def tradingview_webhook():
             and data.get("secret")
             != WEBHOOK_SECRET
         ):
+
             return jsonify({
                 "error": "Unauthorized"
             }), 401
@@ -2855,11 +3329,13 @@ def tradingview_webhook():
         if symbol.endswith(
             "USDT"
         ):
+
             symbol = symbol[:-4]
 
         elif symbol.endswith(
             "USD"
         ):
+
             symbol = symbol[:-3]
 
         if symbol not in COINS:
@@ -2923,26 +3399,38 @@ def home():
     return jsonify({
         "status": "online",
         "bot": "SideShift AI",
-        "version": "3.0",
+        "version": "3.1",
+
         "market_engine": "online",
+
         "signal_engine": (
             "enabled"
             if FREE_SIGNAL_CHAT_ID
             else "not configured"
         ),
+
         "news_engine": (
             "enabled"
             if NEWS_CHAT_ID
             else "manual only"
         ),
+
+        "free_channel": (
+            "configured"
+            if FREE_CHANNEL
+            else "not configured"
+        ),
+
         "providers": [
             "Coinbase",
             "Kraken",
             "Binance fallback",
         ],
+
         "coins": list(
             COINS.keys()
         ),
+
         "timeframes": list(
             TIMEFRAMES.keys()
         ),
@@ -3025,14 +3513,18 @@ def setup_telegram_webhook():
 
         response = requests.post(
             f"{TELEGRAM_API}/setWebhook",
+
             json={
                 "url": webhook_url,
+
                 "allowed_updates": [
                     "message",
                     "callback_query",
                 ],
+
                 "drop_pending_updates": True,
             },
+
             timeout=15,
         )
 
@@ -3067,7 +3559,9 @@ def start_background_engines():
 
     BACKGROUND_STARTED = True
 
-    # Free signal engine.
+    # --------------------------------------------------------
+    # FREE SIGNAL ENGINE
+    # --------------------------------------------------------
 
     if FREE_SIGNAL_CHAT_ID:
 
@@ -3078,7 +3572,9 @@ def start_background_engines():
 
         signal_thread.start()
 
-    # Recurring news engine.
+    # --------------------------------------------------------
+    # NEWS ENGINE
+    # --------------------------------------------------------
 
     if NEWS_CHAT_ID:
 
@@ -3101,7 +3597,7 @@ if __name__ == "__main__":
     )
 
     print(
-        "SideShift AI 3.0 starting..."
+        "SideShift AI 3.1 starting..."
     )
 
     print(
@@ -3119,6 +3615,12 @@ if __name__ == "__main__":
         "Railway domain:",
         RAILWAY_PUBLIC_DOMAIN
         or "MISSING",
+    )
+
+    print(
+        "Free channel:",
+        FREE_CHANNEL
+        or "NOT CONFIGURED",
     )
 
     print(
