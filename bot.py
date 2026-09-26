@@ -1402,8 +1402,8 @@ def calculate_structure(
     )
 
     if (
-        len(highs) < 2
-        or len(lows) < 2
+        len(highs) < 3
+        or len(lows) < 3
     ):
 
         return {
@@ -1413,48 +1413,88 @@ def calculate_structure(
             "resistance": None,
         }
 
-    previous_high = highs[-2][1]
-    latest_high = highs[-1][1]
+    recent_highs = highs[-3:]
+    recent_lows = lows[-3:]
 
-    previous_low = lows[-2][1]
-    latest_low = lows[-1][1]
+    high_values = [
+        point[1]
+        for point in recent_highs
+    ]
 
-    hh = (
-        latest_high
-        > previous_high
-    )
+    low_values = [
+        point[1]
+        for point in recent_lows
+    ]
 
-    hl = (
-        latest_low
-        > previous_low
-    )
+    higher_highs = 0
+    lower_highs = 0
 
-    lh = (
-        latest_high
-        < previous_high
-    )
+    higher_lows = 0
+    lower_lows = 0
 
-    ll = (
-        latest_low
-        < previous_low
-    )
+    for i in range(1, len(high_values)):
 
-    if hh and hl:
+        if high_values[i] > high_values[i - 1]:
+
+            higher_highs += 1
+
+        elif high_values[i] < high_values[i - 1]:
+
+            lower_highs += 1
+
+    for i in range(1, len(low_values)):
+
+        if low_values[i] > low_values[i - 1]:
+
+            higher_lows += 1
+
+        elif low_values[i] < low_values[i - 1]:
+
+            lower_lows += 1
+
+    latest_high = high_values[-1]
+    latest_low = low_values[-1]
+
+    score = 0
+
+    if higher_highs >= 1:
+        score += 1
+
+    if higher_lows >= 1:
+        score += 1
+
+    if lower_highs >= 1:
+        score -= 1
+
+    if lower_lows >= 1:
+        score -= 1
+
+    if (
+        higher_highs >= 1
+        and higher_lows >= 1
+        and lower_highs == 0
+        and lower_lows == 0
+    ):
 
         label = "Bullish Structure"
         score = 3
 
-    elif lh and ll:
+    elif (
+        lower_highs >= 1
+        and lower_lows >= 1
+        and higher_highs == 0
+        and higher_lows == 0
+    ):
 
         label = "Bearish Structure"
         score = -3
 
-    elif hh or hl:
+    elif score >= 2:
 
         label = "Bullish Lean"
         score = 1
 
-    elif lh or ll:
+    elif score <= -2:
 
         label = "Bearish Lean"
         score = -1
