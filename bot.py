@@ -869,7 +869,7 @@ def get_binance_candles(
 
 
 # ============================================================
-# PROVIDER ROUTER
+# PROVIDER ROUTER — MULTI-EXCHANGE
 # ============================================================
 
 def get_market_candles(
@@ -878,46 +878,128 @@ def get_market_candles(
 ):
 
     config = COINS[coin]
-
     tf = TIMEFRAMES[timeframe]
 
+    provider_results = []
+
     # --------------------------------------------------------
-    # Coinbase
+    # COINBASE
     # --------------------------------------------------------
 
-    candles = get_coinbase_candles(
-        config["coinbase"],
-        tf["coinbase"],
+    try:
+
+        candles = get_coinbase_candles(
+            config["coinbase"],
+            tf["coinbase"],
+        )
+
+        if len(candles) >= 60:
+
+            provider_results.append({
+                "provider": "Coinbase",
+                "candles": candles,
+            })
+
+    except Exception as exc:
+
+        print(
+            "COINBASE PROVIDER ERROR:",
+            coin,
+            timeframe,
+            repr(exc),
+        )
+
+    # --------------------------------------------------------
+    # KRAKEN
+    # --------------------------------------------------------
+
+    try:
+
+        candles = get_kraken_candles(
+            config["kraken"],
+            tf["kraken"],
+        )
+
+        if len(candles) >= 60:
+
+            provider_results.append({
+                "provider": "Kraken",
+                "candles": candles,
+            })
+
+    except Exception as exc:
+
+        print(
+            "KRAKEN PROVIDER ERROR:",
+            coin,
+            timeframe,
+            repr(exc),
+        )
+
+    # --------------------------------------------------------
+    # BINANCE
+    # --------------------------------------------------------
+
+    try:
+
+        candles = get_binance_candles(
+            config["binance"],
+            tf["binance"],
+        )
+
+        if len(candles) >= 60:
+
+            provider_results.append({
+                "provider": "Binance",
+                "candles": candles,
+            })
+
+    except Exception as exc:
+
+        print(
+            "BINANCE PROVIDER ERROR:",
+            coin,
+            timeframe,
+            repr(exc),
+        )
+
+    # --------------------------------------------------------
+    # NO DATA
+    # --------------------------------------------------------
+
+    if not provider_results:
+
+        return [], None
+
+    # --------------------------------------------------------
+    # SELECT THE MOST COMPLETE DATASET
+    #
+    # For now we collect from ALL available exchanges.
+    # We use the longest valid dataset for the technical
+    # analysis so we don't accidentally mix differently
+    # timestamped candles.
+    #
+    # Later we will add true cross-exchange aggregation.
+    # --------------------------------------------------------
+
+    provider_results.sort(
+        key=lambda item: len(
+            item["candles"]
+        ),
+        reverse=True,
     )
 
-    if len(candles) >= 60:
-        return candles, "Coinbase"
+    selected = provider_results[0]
 
-    # --------------------------------------------------------
-    # Kraken
-    # --------------------------------------------------------
-
-    candles = get_kraken_candles(
-        config["kraken"],
-        tf["kraken"],
+    provider_names = ", ".join(
+        item["provider"]
+        for item in provider_results
     )
 
-    if len(candles) >= 60:
-        return candles, "Kraken"
-
-    # --------------------------------------------------------
-    # Binance fallback
-    # --------------------------------------------------------
-
-    candles = get_binance_candles(
-        config["binance"],
-        tf["binance"],
+    return (
+        selected["candles"],
+        provider_names,
     )
-
-    if len(candles) >= 60:
-        return candles, "Binance"
-
-    return [], None
 
 
 # ============================================================
