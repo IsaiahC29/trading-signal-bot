@@ -3080,8 +3080,8 @@ def scan_coin(
     # --------------------------------------------------------
 
     if (
-        bullish_ratio >= 0.75
-        and average_score >= 4
+        bullish_ratio >= 0.80
+        and average_score >= 5
     ):
 
         overall_label = (
@@ -3089,8 +3089,8 @@ def scan_coin(
         )
 
     elif (
-        bearish_ratio >= 0.75
-        and average_score <= -4
+        bearish_ratio >= 0.80
+        and average_score <= -5
     ):
 
         overall_label = (
