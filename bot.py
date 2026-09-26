@@ -3950,12 +3950,21 @@ def build_scan_message(
         )
     )
 
-    derivatives_bias = (
-        derivatives.get(
-            "bias",
-            "Unavailable",
+        if not analysis.get(
+        "derivatives",
+        {}
+    ).get(
+        "available",
+        False
+    ):
+        derivatives_bias = "Unavailable"
+    else:
+        derivatives_bias = (
+            derivatives.get(
+                "bias",
+                "Unavailable",
+            )
         )
-    )
 
     warnings = derivatives.get(
         "warnings",
