@@ -3255,14 +3255,25 @@ def scan_coin(
                 confidence,
         },
         "data_quality": (
-            "Excellent"
-            if len(valid_results) == 5
-            else "Good"
-            if len(valid_results) >= 4
-            else "Partial"
-            if len(valid_results) >= 3
-            else "Insufficient"
-        ),
+    "Excellent"
+    if (
+        len(valid_results) == 5
+        and derivatives.get("available")
+    )
+    else "Good"
+    if (
+        len(valid_results) >= 4
+        and derivatives.get("available")
+    )
+    else "Good"
+    if (
+        len(valid_results) == 5
+        and not derivatives.get("available")
+    )
+    else "Partial"
+    if len(valid_results) >= 3
+    else "Insufficient"
+),
         "average_rsi":
             average_rsi,
         "volatility":
