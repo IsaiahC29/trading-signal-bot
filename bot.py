@@ -3893,7 +3893,7 @@ def build_scan_message(
 
         f"📉 <b>RSI:</b> "
         f"{(
-            f'{analysis.get(\"average_rsi\"):.1f}'
+            f'{analysis.get("average_rsi"):.1f}'
             if analysis.get(
                 'average_rsi'
             ) is not None
