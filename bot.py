@@ -3174,11 +3174,13 @@ def scan_coin(
     # CONFIDENCE
     # --------------------------------------------------------
 
-    confidence = clamp(
+        # --------------------------------------------------------
+    # ANALYSIS STRENGTH
+    # --------------------------------------------------------
+
+    score_strength = clamp(
         (
-            abs(
-                average_score
-            )
+            abs(average_score)
             / 14
         )
         * 100,
@@ -3186,26 +3188,47 @@ def scan_coin(
         100,
     )
 
-    confidence *= (
-        0.65
-        + (
-            0.35
-            * agreement
-        )
+    agreement_strength = (
+        agreement * 100
     )
 
-    if conflicts:
+    timeframe_strength = (
+        (
+            len(valid_results)
+            / len(TIMEFRAMES)
+        )
+        * 100
+    )
 
-        confidence -= (
-            len(conflicts)
-            * 10
+    analysis_strength = (
+        (score_strength * 0.45)
+        + (agreement_strength * 0.30)
+        + (timeframe_strength * 0.15)
+        + 10
+    )
+
+    if structure in (
+        "Bullish",
+        "Bearish",
+    ):
+        analysis_strength += 5
+
+    if volatility == "Very High":
+        analysis_strength -= 10
+
+    if conflicts:
+        analysis_strength -= (
+            len(conflicts) * 10
         )
 
-    confidence = clamp(
-        confidence,
+    analysis_strength = clamp(
+        analysis_strength,
         0,
         100,
     )
+
+    # Keep the existing signal engine compatible.
+    confidence = analysis_strength
 
     # --------------------------------------------------------
     # SIGNAL
