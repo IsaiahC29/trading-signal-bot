@@ -3950,7 +3950,7 @@ def build_scan_message(
         )
     )
 
-        if not analysis.get(
+    if not analysis.get(
         "derivatives",
         {}
     ).get(
