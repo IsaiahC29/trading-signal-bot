@@ -121,7 +121,7 @@ REQUEST_TIMEOUT = 15
 SIGNAL_SCAN_INTERVAL = int(
     os.getenv(
         "SIGNAL_SCAN_INTERVAL",
-        "30",
+        "5",
     )
 ) * 60
 
