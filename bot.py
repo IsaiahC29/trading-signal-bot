@@ -3327,33 +3327,34 @@ def build_signal(
     timeframe_results,
 ):
 
-    # Need at least 4/5 valid timeframes.
-    if valid_count < 4:
+    # --------------------------------------------------------
+    # SIGNAL QUALIFICATION
+    # --------------------------------------------------------
+    #
+    # The bot still requires real market data and directional
+    # evidence, but we allow a wider range of valid setups.
+    # This prevents the engine from being unnecessarily silent.
+    #
+
+    if valid_count < 3:
 
         return None
 
-    # Need strong timeframe agreement.
-    if agreement < 0.75:
+    if agreement < 0.60:
 
         return None
 
-    # Need strong analysis.
-    if confidence < 65:
+    if confidence < 50:
 
         return None
 
-    # Need meaningful score.
-    if abs(score) < MIN_SIGNAL_SCORE:
+    if abs(score) < 3:
 
         return None
 
-    # Never issue a signal with unresolved
-    # major directional conflict.
+    # Do not issue a signal when the analysis contains
+    # an unresolved major conflict.
     if conflicts:
-
-        return None
-
-    if volatility == "Very High":
 
         return None
 
