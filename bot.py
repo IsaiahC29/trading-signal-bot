@@ -374,7 +374,7 @@ SIGNAL_STATE = {
 
     "last_vip_signal": {},
 }
-
+ACTIVE_TRADES = {}
 STATE_LOCK = threading.Lock()
 
 BACKGROUND_STARTED = False
@@ -1343,50 +1343,45 @@ def pivot_points(
     left=3,
     right=3,
 ):
-
     highs = []
     lows = []
 
-    if len(candles) < 20:
-
+    if len(candles) < (left + right + 1):
         return highs, lows
 
-    for i in range(
-        left,
-        len(candles)
-        - right,
-    ):
+    for i in range(left, len(candles) - right):
+
+        current = candles[i]
+
+        high = current["high"]
+        low = current["low"]
 
         nearby = candles[
             i - left:
             i + right + 1
         ]
 
-        high = candles[
-            i
-        ]["high"]
-
-        low = candles[
-            i
-        ]["low"]
-
-        if high == max(
+        nearby_highs = [
             c["high"]
-            for c in nearby
-        ):
+            for j, c in enumerate(nearby)
+            if j != left
+        ]
 
-            highs.append(
-                (i, high)
-            )
-
-        if low == min(
+        nearby_lows = [
             c["low"]
-            for c in nearby
-        ):
+            for j, c in enumerate(nearby)
+            if j != left
+        ]
 
-            lows.append(
-                (i, low)
-            )
+        # Strict pivot high.
+        # Prevents equal/flat highs from creating duplicate pivots.
+        if nearby_highs and high > max(nearby_highs):
+            highs.append((i, high))
+
+        # Strict pivot low.
+        # Prevents equal/flat lows from creating duplicate pivots.
+        if nearby_lows and low < min(nearby_lows):
+            lows.append((i, low))
 
     return highs, lows
 
@@ -1394,18 +1389,15 @@ def pivot_points(
 def calculate_structure(
     candles
 ):
-
     recent = candles[-100:]
 
     highs, lows = pivot_points(
-        recent
+        recent,
+        left=3,
+        right=3,
     )
 
-    if (
-        len(highs) < 3
-        or len(lows) < 3
-    ):
-
+    if len(highs) < 2 or len(lows) < 2:
         return {
             "label": "Unknown",
             "score": 0,
@@ -1432,24 +1424,22 @@ def calculate_structure(
     higher_lows = 0
     lower_lows = 0
 
+    # Compare consecutive swing highs.
     for i in range(1, len(high_values)):
 
         if high_values[i] > high_values[i - 1]:
-
             higher_highs += 1
 
         elif high_values[i] < high_values[i - 1]:
-
             lower_highs += 1
 
+    # Compare consecutive swing lows.
     for i in range(1, len(low_values)):
 
         if low_values[i] > low_values[i - 1]:
-
             higher_lows += 1
 
         elif low_values[i] < low_values[i - 1]:
-
             lower_lows += 1
 
     latest_high = high_values[-1]
@@ -1457,6 +1447,7 @@ def calculate_structure(
 
     score = 0
 
+    # Basic structure scoring.
     if higher_highs >= 1:
         score += 1
 
@@ -1469,38 +1460,38 @@ def calculate_structure(
     if lower_lows >= 1:
         score -= 1
 
+    # Strong bullish structure.
     if (
         higher_highs >= 1
         and higher_lows >= 1
         and lower_highs == 0
         and lower_lows == 0
     ):
-
-        label = "Bullish Structure"
+        label = "Strong Bullish Structure"
         score = 3
 
+    # Strong bearish structure.
     elif (
         lower_highs >= 1
         and lower_lows >= 1
         and higher_highs == 0
         and higher_lows == 0
     ):
-
-        label = "Bearish Structure"
+        label = "Strong Bearish Structure"
         score = -3
 
+    # Bullish lean.
     elif score >= 2:
-
         label = "Bullish Lean"
-        score = 1
+        score = 2
 
+    # Bearish lean.
     elif score <= -2:
-
         label = "Bearish Lean"
-        score = -1
+        score = -2
 
+    # Anything conflicting or insufficiently directional.
     else:
-
         label = "Mixed / Sideways"
         score = 0
 
@@ -4121,7 +4112,10 @@ def build_signal_message(
         f"{format_price(signal['target_1'])}\n"
 
         f"Target 2: "
-        f"{format_price(signal['target_2'])}\n\n"
+        f"{format_price(signal['target_2'])}\n"
+
+        f"Target 3: "
+        f"{format_price(signal['target_3'])}\n\n"
 
         "<b>⚠️ IMPORTANT</b>\n"
 
