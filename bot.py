@@ -3336,15 +3336,15 @@ def build_signal(
     # This prevents the engine from being unnecessarily silent.
     #
 
-    if valid_count < 3:
+    if valid_count < 2:
 
         return None
 
-    if agreement < 0.60:
+    if agreement < 0.50:
 
         return None
 
-    if confidence < 50:
+    if confidence < 45:
 
         return None
 
