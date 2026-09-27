@@ -3428,7 +3428,7 @@ def build_signal(
 
         return None
 
-    if direction == "CALL / LONG":
+        if direction == "CALL / LONG":
 
         invalidation = (
             price
@@ -3451,6 +3451,14 @@ def build_signal(
             + (
                 atr
                 * 3
+            )
+        )
+
+        target_3 = (
+            price
+            + (
+                atr
+                * 4.5
             )
         )
 
@@ -3477,6 +3485,14 @@ def build_signal(
             - (
                 atr
                 * 3
+            )
+        )
+
+        target_3 = (
+            price
+            - (
+                atr
+                * 4.5
             )
         )
 
@@ -3519,6 +3535,10 @@ def build_signal(
 
         "target_2":
             target_2,
+
+        "target_3":
+            target_3,
+
 
         "derivatives_bias":
             derivatives_bias,
