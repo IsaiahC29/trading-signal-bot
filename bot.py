@@ -1405,8 +1405,8 @@ def calculate_structure(
             "resistance": None,
         }
 
-    recent_highs = highs[-3:]
-    recent_lows = lows[-3:]
+    recent_highs = highs[-6:]
+    recent_lows = lows[-6:]
 
     high_values = [
         point[1]
