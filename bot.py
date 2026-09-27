@@ -3348,7 +3348,7 @@ def build_signal(
 
         return None
 
-    if abs(score) < 3:
+    if abs(score) < 2:
 
         return None
 
