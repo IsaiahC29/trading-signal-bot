@@ -3428,7 +3428,7 @@ def build_signal(
 
         return None
 
-        if direction == "CALL / LONG":
+    if direction == "CALL / LONG":
 
         invalidation = (
             price
