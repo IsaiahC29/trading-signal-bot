@@ -5390,7 +5390,7 @@ def start_background_engines():
 # ============================================================
 # START
 # ============================================================
-
+start_background_engines()
 if __name__ == "__main__":
 
     print(
@@ -5474,7 +5474,7 @@ if __name__ == "__main__":
 
     setup_telegram_webhook()
 
-    start_background_engines()
+
 
     app.run(
         host="0.0.0.0",
