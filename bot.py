@@ -1502,7 +1502,146 @@ def calculate_structure(
         "resistance": latest_high,
     }
 
+def detect_smc_structure(candles):
+    """
+    Objective Smart Money Concepts structure layer.
 
+    Detects both bullish and bearish:
+    - Liquidity sweeps
+    - Break of Structure (BOS)
+    - Change of Character (CHoCH)
+
+    This is confirmation logic only.
+    It does not replace the existing structure engine.
+    """
+
+    result = {
+        "liquidity_sweep": None,
+        "bos": None,
+        "choch": None,
+        "sweep_level": None,
+        "break_level": None,
+        "bias": "Neutral",
+        "evidence": [],
+    }
+
+    if len(candles) < 30:
+        return result
+
+    recent = candles[-100:]
+
+    highs, lows = pivot_points(
+        recent,
+        left=3,
+        right=3,
+    )
+
+    if len(highs) < 2 or len(lows) < 2:
+        return result
+
+    previous_high = highs[-2][1]
+    latest_high = highs[-1][1]
+
+    previous_low = lows[-2][1]
+    latest_low = lows[-1][1]
+
+    last_candle = recent[-1]
+
+    last_high = last_candle["high"]
+    last_low = last_candle["low"]
+    last_close = last_candle["close"]
+
+    # ========================================================
+    # LIQUIDITY SWEEP
+    # ========================================================
+
+    # Bullish liquidity sweep:
+    # Price trades below a meaningful swing low,
+    # then closes back above that low.
+    if (
+        last_low < latest_low
+        and last_close > latest_low
+    ):
+        result["liquidity_sweep"] = "Bullish"
+        result["sweep_level"] = latest_low
+        result["bias"] = "Bullish"
+        result["evidence"].append(
+            "bullish_liquidity_sweep"
+        )
+
+    # Bearish liquidity sweep:
+    # Price trades above a meaningful swing high,
+    # then closes back below that high.
+    elif (
+        last_high > latest_high
+        and last_close < latest_high
+    ):
+        result["liquidity_sweep"] = "Bearish"
+        result["sweep_level"] = latest_high
+        result["bias"] = "Bearish"
+        result["evidence"].append(
+            "bearish_liquidity_sweep"
+        )
+
+    # ========================================================
+    # BREAK OF STRUCTURE
+    # ========================================================
+
+    # Bullish BOS:
+    # Price closes above the latest confirmed swing high.
+    if last_close > latest_high:
+        result["bos"] = "Bullish"
+        result["break_level"] = latest_high
+        result["bias"] = "Bullish"
+        result["evidence"].append(
+            "bullish_bos"
+        )
+
+    # Bearish BOS:
+    # Price closes below the latest confirmed swing low.
+    elif last_close < latest_low:
+        result["bos"] = "Bearish"
+        result["break_level"] = latest_low
+        result["bias"] = "Bearish"
+        result["evidence"].append(
+            "bearish_bos"
+        )
+
+    # ========================================================
+    # CHANGE OF CHARACTER
+    # ========================================================
+
+    # Bullish CHoCH:
+    # Existing structure has been making lower highs/lows,
+    # then price breaks the latest swing high.
+    if (
+        latest_high < previous_high
+        and latest_low < previous_low
+        and last_close > latest_high
+    ):
+        result["choch"] = "Bullish"
+        result["break_level"] = latest_high
+        result["bias"] = "Bullish"
+        result["evidence"].append(
+            "bullish_choch"
+        )
+
+    # Bearish CHoCH:
+    # Existing structure has been making higher highs/lows,
+    # then price breaks the latest swing low.
+    elif (
+        latest_high > previous_high
+        and latest_low > previous_low
+        and last_close < latest_low
+    ):
+        result["choch"] = "Bearish"
+        result["break_level"] = latest_low
+        result["bias"] = "Bearish"
+        result["evidence"].append(
+            "bearish_choch"
+        )
+
+    return result
 # ============================================================
 # TIMEFRAME ANALYSIS
 # ============================================================
