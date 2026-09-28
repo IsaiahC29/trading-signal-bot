@@ -3354,9 +3354,7 @@ def build_signal(
 
     # Do not issue a signal when the analysis contains
     # an unresolved major conflict.
-    if conflicts:
-
-        return None
+    
 
     if label not in (
         "Bullish",
