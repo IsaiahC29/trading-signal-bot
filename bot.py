@@ -314,9 +314,14 @@ COINS = {
         "binance": "PENGUUSDT",
         "cmc": "PENGU",
     },
+    
+    "LTC": {
+        "coinbase": "LTC-USD",
+        "kraken": "LTCUSD",
+        "binance": "LTCUSDT",
+        "cmc": "LTC",
+    },
 }
-
-
 # ============================================================
 # TIMEFRAMES
 # ============================================================
@@ -1642,6 +1647,220 @@ def detect_smc_structure(candles):
         )
 
     return result
+    def detect_entry_setup(candles, technical):
+    """
+    Converts raw price action into an observable entry state.
+
+    LONG:
+        trend -> pullback/dip -> reclaim/sweep/BOS -> trigger
+
+    SHORT:
+        trend -> rally -> rejection/sweep/BOS -> trigger
+
+    This does NOT claim to identify "market manipulation".
+    It only records observable price/structure behavior.
+    """
+
+    result = {
+        "setup": "WAIT",
+        "trigger": False,
+        "direction": None,
+        "pullback": False,
+        "liquidity_sweep": None,
+        "bos": None,
+        "choch": None,
+        "entry_reason": None,
+    }
+
+    if (
+        len(candles) < 30
+        or not technical.get("valid")
+    ):
+        return result
+
+    direction = technical.get(
+        "direction",
+        "",
+    )
+
+    if "Bullish" in direction:
+        bias = "Bullish"
+
+    elif "Bearish" in direction:
+        bias = "Bearish"
+
+    else:
+        return result
+
+    atr = technical.get("atr")
+    price = technical.get("price")
+    ema20 = technical.get("ema20")
+
+    if not atr or not price:
+        return result
+
+    smc = detect_smc_structure(candles)
+
+    recent = candles[-25:-1]
+
+    if len(recent) < 10:
+        return result
+
+    recent_high = max(
+        c["high"]
+        for c in recent
+    )
+
+    recent_low = min(
+        c["low"]
+        for c in recent
+    )
+
+    last = candles[-1]
+    previous = candles[-2]
+
+    last_close = last["close"]
+
+    min_pullback = max(
+        atr * 0.25,
+        price * 0.002,
+    )
+
+    # ========================================================
+    # BULLISH
+    # ========================================================
+
+    if bias == "Bullish":
+
+        pullback = (
+            recent_high - last_close
+            >= min_pullback
+            and last_close > recent_low
+        )
+
+        reclaim = (
+            last_close > previous["high"]
+            and (
+                ema20 is None
+                or last_close >= ema20
+            )
+        )
+
+        sweep = (
+            smc.get("liquidity_sweep")
+            == "Bullish"
+        )
+
+        bos = (
+            smc.get("bos")
+            == "Bullish"
+        )
+
+        trigger = (
+            reclaim
+            or sweep
+            or bos
+        )
+
+        result["direction"] = "Bullish"
+        result["pullback"] = pullback
+        result["liquidity_sweep"] = (
+            smc.get("liquidity_sweep")
+        )
+        result["bos"] = smc.get("bos")
+        result["choch"] = smc.get("choch")
+        result["trigger"] = trigger
+
+        if pullback and trigger:
+
+            result["setup"] = (
+                "BUY THE DIP"
+            )
+
+            result["entry_reason"] = (
+                "Bullish trend pullback with "
+                "reclaim/structure confirmation"
+            )
+
+        elif trigger:
+
+            result["setup"] = (
+                "BULLISH TRIGGER"
+            )
+
+            result["entry_reason"] = (
+                "Bullish structure/momentum "
+                "confirmation"
+            )
+
+    # ========================================================
+    # BEARISH
+    # ========================================================
+
+    else:
+
+        pullback = (
+            last_close - recent_low
+            >= min_pullback
+            and last_close < recent_high
+        )
+
+        rejection = (
+            last_close < previous["low"]
+            and (
+                ema20 is None
+                or last_close <= ema20
+            )
+        )
+
+        sweep = (
+            smc.get("liquidity_sweep")
+            == "Bearish"
+        )
+
+        bos = (
+            smc.get("bos")
+            == "Bearish"
+        )
+
+        trigger = (
+            rejection
+            or sweep
+            or bos
+        )
+
+        result["direction"] = "Bearish"
+        result["pullback"] = pullback
+        result["liquidity_sweep"] = (
+            smc.get("liquidity_sweep")
+        )
+        result["bos"] = smc.get("bos")
+        result["choch"] = smc.get("choch")
+        result["trigger"] = trigger
+
+        if pullback and trigger:
+
+            result["setup"] = (
+                "SELL THE RALLY"
+            )
+
+            result["entry_reason"] = (
+                "Bearish trend rally with "
+                "rejection/structure confirmation"
+            )
+
+        elif trigger:
+
+            result["setup"] = (
+                "BEARISH TRIGGER"
+            )
+
+            result["entry_reason"] = (
+                "Bearish structure/momentum "
+                "confirmation"
+            )
+
+    return result
 # ============================================================
 # TIMEFRAME ANALYSIS
 # ============================================================
@@ -2878,6 +3097,23 @@ def scan_technical(
                 )
             )
 
+            # ------------------------------------------------
+            # NEW: PRICE-ACTION / ENTRY ANALYSIS
+            # ------------------------------------------------
+
+            result[
+                "smc"
+            ] = detect_smc_structure(
+                candles
+            )
+
+            result[
+                "entry_setup"
+            ] = detect_entry_setup(
+                candles,
+                result,
+            )
+
         timeframe_results[
             timeframe
         ] = result
@@ -3363,7 +3599,11 @@ def scan_coin(
     # --------------------------------------------------------
     # SIGNAL
     # --------------------------------------------------------
-
+    entry_segments = (
+        build_entry_segments(
+            timeframe_results
+        )
+    )
     signal = build_signal(
         coin=coin,
         label=overall_label,
@@ -3386,9 +3626,13 @@ def scan_coin(
         timeframe_results=(
             timeframe_results
         ),
+                entry_segments=(
+            entry_segments
+        ),
     )
 
-    return {
+    return {         "entry_segments":
+            entry_segments,
         "coin": coin,
         "price": price,
         "timeframes":
@@ -3449,7 +3693,213 @@ def scan_coin(
 # ============================================================
 # SIGNAL BUILDER
 # ============================================================
+def build_entry_segments(
+    timeframe_results
+):
+    """
+    Timeframes have specific jobs.
 
+    1D / 4H  = directional context
+    1H       = setup
+    15M / 5M = entry trigger
+    """
+
+    result = {
+        "valid": False,
+        "direction": None,
+        "context": "WAIT",
+        "setup": "WAIT",
+        "entry": "WAIT",
+        "entry_timeframe": None,
+        "entry_price": None,
+        "entry_reason": None,
+    }
+
+    def bias(
+        timeframe
+    ):
+
+        item = timeframe_results.get(
+            timeframe,
+            {}
+        )
+
+        direction = item.get(
+            "direction",
+            ""
+        )
+
+        if direction in (
+            "Strong Bullish",
+            "Bullish",
+        ):
+            return "Bullish"
+
+        if direction in (
+            "Strong Bearish",
+            "Bearish",
+        ):
+            return "Bearish"
+
+        return "Neutral"
+
+    daily = bias("1D")
+    four_hour = bias("4h")
+    one_hour = bias("1h")
+    fifteen = bias("15m")
+    five = bias("5m")
+
+    # ========================================================
+    # 1D + 4H = CONTEXT
+    # ========================================================
+
+    context_direction = None
+
+    if (
+        daily in (
+            "Bullish",
+            "Bearish",
+        )
+        and four_hour == daily
+    ):
+
+        context_direction = daily
+
+    elif daily in (
+        "Bullish",
+        "Bearish",
+    ):
+
+        context_direction = daily
+
+    elif four_hour in (
+        "Bullish",
+        "Bearish",
+    ):
+
+        context_direction = four_hour
+
+    if not context_direction:
+        return result
+
+    # ========================================================
+    # 1H = SETUP
+    # ========================================================
+
+    if one_hour != context_direction:
+        return result
+
+    setup_result = (
+        timeframe_results
+        .get("1h", {})
+        .get("entry_setup", {})
+    )
+
+    if (
+        setup_result.get("setup")
+        == "WAIT"
+    ):
+        return result
+
+    # ========================================================
+    # 15M / 5M = ENTRY TRIGGER
+    # ========================================================
+
+    candidates = [
+        (
+            "5m",
+            timeframe_results.get(
+                "5m",
+                {},
+            ),
+        ),
+        (
+            "15m",
+            timeframe_results.get(
+                "15m",
+                {},
+            ),
+        ),
+    ]
+
+    selected = None
+
+    for (
+        timeframe,
+        item,
+    ) in candidates:
+
+        if bias(
+            timeframe
+        ) != context_direction:
+
+            continue
+
+        entry_setup = (
+            item.get(
+                "entry_setup",
+                {},
+            )
+        )
+
+        if entry_setup.get(
+            "trigger"
+        ):
+
+            selected = (
+                timeframe,
+                item,
+                entry_setup,
+            )
+
+            break
+
+    if not selected:
+        return result
+
+    (
+        timeframe,
+        item,
+        entry_setup,
+    ) = selected
+
+    result.update({
+        "valid": True,
+
+        "direction":
+            context_direction,
+
+        "context":
+            context_direction,
+
+        "setup":
+            setup_result.get(
+                "setup",
+                "WAIT",
+            ),
+
+        "entry":
+            entry_setup.get(
+                "setup",
+                "WAIT",
+            ),
+
+        "entry_timeframe":
+            timeframe,
+
+        "entry_price":
+            item.get(
+                "price"
+            ),
+
+        "entry_reason":
+            entry_setup.get(
+                "entry_reason"
+            ),
+    })
+
+    return result
+    
 def build_signal(
     coin,
     label,
@@ -3464,103 +3914,101 @@ def build_signal(
     derivatives_bias,
     btc_regime,
     timeframe_results,
+    entry_segments=None,
 ):
 
-    # --------------------------------------------------------
-    # SIGNAL QUALIFICATION
-    # --------------------------------------------------------
-    #
-    # The bot still requires real market data and directional
-    # evidence, but we allow a wider range of valid setups.
-    # This prevents the engine from being unnecessarily silent.
-    #
-
     if valid_count < 2:
-
-        return None
-
-    if agreement < 0.50:
-
         return None
 
     if confidence < 45:
-
         return None
 
     if abs(score) < 2:
-
         return None
-
-    # Do not issue a signal when the analysis contains
-    # an unresolved major conflict.
-    
 
     if label not in (
         "Bullish",
         "Bearish",
     ):
-
         return None
 
     if structure not in (
         "Bullish",
         "Bearish",
     ):
-
         return None
 
-    if label == "Bullish":
+    # ========================================================
+    # NEW: SEGMENTED ENTRY VALIDATION
+    # ========================================================
 
-        direction = (
-            "CALL / LONG"
+    if not entry_segments:
+        return None
+
+    if not entry_segments.get(
+        "valid"
+    ):
+        return None
+
+    if (
+        entry_segments.get(
+            "direction"
         )
+        != label
+    ):
+        return None
 
-    else:
+    direction = (
+        "CALL / LONG"
+        if label == "Bullish"
+        else "PUT / SHORT"
+    )
 
-        direction = (
-            "PUT / SHORT"
+    entry_price = (
+        entry_segments.get(
+            "entry_price"
         )
+    )
 
-    # --------------------------------------------------------
-    # ATR-BASED RISK LEVELS
-    #
-    # These are analytical reference levels,
-    # not guarantees.
-    # --------------------------------------------------------
+    entry_timeframe = (
+        entry_segments.get(
+            "entry_timeframe"
+        )
+    )
+
+    if (
+        entry_price is None
+        or entry_timeframe is None
+    ):
+        return None
 
     anchor = (
         timeframe_results.get(
-            "1h"
-        )
-        or timeframe_results.get(
-            "15m"
+            entry_timeframe
         )
     )
 
     if not anchor:
-
         return None
-
-    price = anchor.get(
-        "price"
-    )
 
     atr = anchor.get(
         "atr"
     )
 
     if (
-        price is None
-        or atr is None
+        atr is None
         or atr <= 0
     ):
-
         return None
+
+    # ========================================================
+    # RISK LEVELS
+    # ========================================================
 
     if direction == "CALL / LONG":
 
         invalidation = (
-            price
+            entry_price
             - (
                 atr
                 * 1.5
@@ -3568,7 +4016,7 @@ def build_signal(
         )
 
         target_1 = (
-            price
+            entry_price
             + (
                 atr
                 * 1.5
@@ -3576,7 +4024,7 @@ def build_signal(
         )
 
         target_2 = (
-            price
+            entry_price
             + (
                 atr
                 * 3
@@ -3584,7 +4032,7 @@ def build_signal(
         )
 
         target_3 = (
-            price
+            entry_price
             + (
                 atr
                 * 4.5
@@ -3594,7 +4042,7 @@ def build_signal(
     else:
 
         invalidation = (
-            price
+            entry_price
             + (
                 atr
                 * 1.5
@@ -3602,7 +4050,7 @@ def build_signal(
         )
 
         target_1 = (
-            price
+            entry_price
             - (
                 atr
                 * 1.5
@@ -3610,7 +4058,7 @@ def build_signal(
         )
 
         target_2 = (
-            price
+            entry_price
             - (
                 atr
                 * 3
@@ -3618,7 +4066,7 @@ def build_signal(
         )
 
         target_3 = (
-            price
+            entry_price
             - (
                 atr
                 * 4.5
@@ -3654,7 +4102,37 @@ def build_signal(
             "HIGH-CONFLUENCE",
 
         "entry":
-            price,
+            entry_price,
+
+        "entry_timeframe":
+            entry_timeframe,
+
+        "entry_type":
+            entry_segments.get(
+                "setup",
+                "ENTRY",
+            ),
+
+        "entry_trigger":
+            entry_segments.get(
+                "entry",
+                "TRIGGER",
+            ),
+
+        "entry_reason":
+            entry_segments.get(
+                "entry_reason"
+            ),
+
+        "context":
+            entry_segments.get(
+                "context"
+            ),
+
+        "setup":
+            entry_segments.get(
+                "setup"
+            ),
 
         "invalidation":
             invalidation,
@@ -3667,7 +4145,6 @@ def build_signal(
 
         "target_3":
             target_3,
-
 
         "derivatives_bias":
             derivatives_bias,
