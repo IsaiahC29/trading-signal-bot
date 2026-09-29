@@ -1647,15 +1647,19 @@ def detect_smc_structure(candles):
         )
 
     return result
-    def detect_entry_setup(candles, technical):
+    
+    return result
+
+
+def detect_entry_setup(candles, technical):
     """
     Converts raw price action into an observable entry state.
 
     LONG:
-        trend -> pullback/dip -> reclaim/sweep/BOS -> trigger
+        trend → pullback/dip → reclaim/sweep/BOS
 
     SHORT:
-        trend -> rally -> rejection/sweep/BOS -> trigger
+        trend → rally → rejection/sweep/BOS
 
     This does NOT claim to identify "market manipulation".
     It only records observable price/structure behavior.
@@ -1958,11 +1962,7 @@ def analyze_timeframe(
                 "ema20_below_ema50"
             )
 
-    long_ema = (
-        ema200
-        if ema200 is not None
-        else ema50
-    )
+    long_ema = ema200
 
     if long_ema is not None:
 
@@ -4098,8 +4098,13 @@ def build_signal(
                 1,
             ),
 
-        "quality":
-            "HIGH-CONFLUENCE",
+        "quality": (
+            "HIGH-CONFLUENCE"
+            if confidence >= 4.5 and agreement >= 0.80
+            else "CONFLUENCE"
+            if confidence >= 3.5 and agreement >= 0.65
+           else "DEVELOPING"
+),
 
         "entry":
             entry_price,
@@ -4181,15 +4186,19 @@ def scan_market():
     # BTC FIRST
     # --------------------------------------------------------
 
-    btc_technical = scan_technical(
-        "BTC"
-    )
+    btc_technical = scan_technical("BTC")
 
-    btc_regime = (
-        determine_btc_regime(
-            btc_technical[0]
-        )
-    )
+if not btc_technical:
+    print("BTC TECHNICAL DATA UNAVAILABLE — SKIPPING MARKET SCAN")
+    return {
+        "btc_regime": "UNKNOWN",
+        "analyses": [],
+        "signals": [],
+    }
+
+btc_regime = determine_btc_regime(
+    btc_technical[0]
+)
 
     print(
         "BTC REGIME:",
