@@ -4188,17 +4188,20 @@ def scan_market():
 
     btc_technical = scan_technical("BTC")
 
-if not btc_technical:
-    print("BTC TECHNICAL DATA UNAVAILABLE — SKIPPING MARKET SCAN")
-    return {
-        "btc_regime": "UNKNOWN",
-        "analyses": [],
-        "signals": [],
-    }
+    if not btc_technical:
+        print(
+            "BTC TECHNICAL DATA UNAVAILABLE — SKIPPING MARKET SCAN"
+        )
 
-btc_regime = determine_btc_regime(
-    btc_technical[0]
-)
+        return {
+            "btc_regime": "UNKNOWN",
+            "analyses": [],
+            "signals": [],
+        }
+
+    btc_regime = determine_btc_regime(
+        btc_technical[0]
+    )
 
     print(
         "BTC REGIME:",
