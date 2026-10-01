@@ -5100,21 +5100,27 @@ def run_signal_engine():
                 continue
 
             if send_telegram(
-                message,
-                FREE_SIGNAL_CHAT_ID,
-            ):
+    message,
+    FREE_SIGNAL_CHAT_ID,
+):
 
-                mark_signal_sent(
-                    coin,
-                    "free",
-                )
+    mark_signal_sent(
+        coin,
+        "free",
+    )
 
-                free_sent += 1
+    free_sent += 1
 
-                print(
-                    "FREE SIGNAL SENT:",
-                    coin,
-                )
+    register_active_trade(
+        analysis,
+        free_sent=True,
+        vip_sent=False,
+    )
+
+    print(
+        "FREE SIGNAL SENT:",
+        coin,
+    )
 
     # --------------------------------------------------------
     # VIP
@@ -5171,7 +5177,12 @@ def run_signal_engine():
                 )
 
                 vip_sent += 1
-
+                
+                register_active_trade(
+                    analysis,
+                    free_sent=False,
+                    vip_sent=True,
+                )
                 print(
                     "VIP SIGNAL SENT:",
                     coin,
