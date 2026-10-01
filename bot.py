@@ -4517,7 +4517,7 @@ def mark_signal_sent(
             SIGNAL_STATE[
                 "last_vip_signal"
             ][coin] = time.time()
- def register_active_trade(analysis, free_sent=False, vip_sent=False):
+def register_active_trade(analysis, free_sent=False, vip_sent=False):
     if not (free_sent or vip_sent):
         return
 
@@ -5099,7 +5099,7 @@ def run_signal_engine():
 
                 continue
 
-            if send_telegram(
+if send_telegram(
     message,
     FREE_SIGNAL_CHAT_ID,
 ):
@@ -5116,6 +5116,8 @@ def run_signal_engine():
         free_sent=True,
         vip_sent=False,
     )
+
+    
 
     print(
         "FREE SIGNAL SENT:",
