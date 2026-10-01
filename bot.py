@@ -3906,20 +3906,24 @@ def build_entry_segments(
     # 1H = SETUP
     # ========================================================
 
-    if one_hour != context_direction:
+   setup_result = (
+    timeframe_results
+    .get("1h", {})
+    .get("entry_setup", {})
+)
+
+one_hour_setup = setup_result.get("setup", "WAIT")
+
+# 1H is confirmation, but it should not completely
+# block a valid lower-timeframe trigger unless it
+# explicitly conflicts with the higher-timeframe context.
+if one_hour_setup in ("Bullish", "Bearish"):
+    if one_hour_setup != context_direction:
         return result
 
-    setup_result = (
-        timeframe_results
-        .get("1h", {})
-        .get("entry_setup", {})
-    )
-
-    if (
-        setup_result.get("setup")
-        == "WAIT"
-    ):
-        return result
+# A WAIT setup on 1H is allowed to continue ONLY if
+# the lower timeframe produces a confirmed trigger.
+# The 15M/5M trigger remains the actual entry gate.
 
     # ========================================================
     # 15M / 5M = ENTRY TRIGGER
@@ -3949,11 +3953,12 @@ def build_entry_segments(
         item,
     ) in candidates:
 
-        if bias(
-            timeframe
-        ) != context_direction:
+        candidate_bias = bias(timeframe)
 
-            continue
+        # Reject an explicit opposite-direction candidate
+        if candidate_bias in ("Bullish", "Bearish"):
+            if candidate_bias != context_direction:
+                continue
 
         entry_setup = (
             item.get(
