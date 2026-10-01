@@ -504,7 +504,7 @@ STATE_LOCK = threading.Lock()
 
 BACKGROUND_STARTED = False
 
-
+ACTIVE_TRADES_LOCK = threading.Lock()
 # ============================================================
 # GENERAL HELPERS
 # ============================================================
@@ -4517,7 +4517,166 @@ def mark_signal_sent(
             SIGNAL_STATE[
                 "last_vip_signal"
             ][coin] = time.time()
+ def register_active_trade(analysis, free_sent=False, vip_sent=False):
+    if not (free_sent or vip_sent):
+        return
 
+    signal = analysis.get("signal")
+    if not signal:
+        return
+
+    levels = signal.get("levels") or {}
+    coin = analysis.get("coin")
+
+    if not coin:
+        return
+
+    trade = {
+        "coin": coin,
+        "direction": levels.get("direction"),
+        "entry": levels.get("entry"),
+        "stop": levels.get("stop"),
+        "tp1": levels.get("tp1"),
+        "tp2": levels.get("tp2"),
+        "tp1_hit": False,
+        "tp2_hit": False,
+        "stop_hit": False,
+        "free_chat_id": FREE_SIGNAL_CHAT_ID if free_sent else None,
+        "vip_chat_id": VIP_SIGNAL_CHAT_ID if vip_sent else None,
+        "created_at": time.time(),
+    }
+
+    with ACTIVE_TRADES_LOCK:
+        ACTIVE_TRADES[coin] = trade
+
+    print(
+        "ACTIVE TRADE REGISTERED:",
+        coin,
+        trade["direction"],
+        "entry=", trade["entry"],
+        "stop=", trade["stop"],
+        "tp1=", trade["tp1"],
+        "tp2=", trade["tp2"],
+    )
+
+
+def get_monitor_price(coin):
+    try:
+        candles, provider = get_market_candles(coin, "5m")
+        if candles:
+            return candles[-1].get("close")
+    except Exception as exc:
+        print("MONITOR PRICE ERROR:", coin, repr(exc))
+
+    return None
+
+
+def send_trade_update(trade, message):
+    sent = False
+
+    chat_ids = {
+        trade.get("free_chat_id"),
+        trade.get("vip_chat_id"),
+    }
+
+    for chat_id in chat_ids:
+        if chat_id:
+            try:
+                if send_telegram(message, chat_id):
+                    sent = True
+            except Exception as exc:
+                print("TRADE UPDATE ERROR:", repr(exc))
+
+    return sent
+
+
+def monitor_active_trades():
+    print("SideShift trade monitor started.")
+
+    while True:
+        try:
+            with ACTIVE_TRADES_LOCK:
+                trades = list(ACTIVE_TRADES.items())
+
+            for coin, trade in trades:
+                price = get_monitor_price(coin)
+
+                if price is None:
+                    continue
+
+                direction = trade.get("direction")
+
+                if direction == "LONG":
+                    stop_hit = price <= trade["stop"]
+                    tp1_hit = price >= trade["tp1"]
+                    tp2_hit = price >= trade["tp2"]
+
+                elif direction == "SHORT":
+                    stop_hit = price >= trade["stop"]
+                    tp1_hit = price <= trade["tp1"]
+                    tp2_hit = price <= trade["tp2"]
+
+                else:
+                    continue
+
+                if stop_hit and not trade["stop_hit"]:
+                    message = (
+                        f"<b>🛑 STOP LOSS HIT</b>\n\n"
+                        f"🪙 <b>{coin}</b>\n"
+                        f"📍 <b>Direction:</b> {direction}\n"
+                        f"💰 <b>Price:</b> {format_price(price)}\n\n"
+                        f"<i>Trade monitoring closed.</i>"
+                    )
+
+                    send_trade_update(trade, message)
+                    trade["stop_hit"] = True
+
+                    with ACTIVE_TRADES_LOCK:
+                        ACTIVE_TRADES.pop(coin, None)
+
+                    print("STOP LOSS HIT:", coin, price)
+                    continue
+
+                if tp1_hit and not trade["tp1_hit"]:
+                    message = (
+                        f"<b>🎯 TP1 HIT</b>\n\n"
+                        f"🪙 <b>{coin}</b>\n"
+                        f"📍 <b>Direction:</b> {direction}\n"
+                        f"💰 <b>Price:</b> {format_price(price)}\n"
+                        f"🎯 <b>TP1:</b> {format_price(trade['tp1'])}\n"
+                    )
+
+                    send_trade_update(trade, message)
+                    trade["tp1_hit"] = True
+
+                    with ACTIVE_TRADES_LOCK:
+                        if coin in ACTIVE_TRADES:
+                            ACTIVE_TRADES[coin]["tp1_hit"] = True
+
+                    print("TP1 HIT:", coin, price)
+
+                if tp2_hit and not trade["tp2_hit"]:
+                    message = (
+                        f"<b>🎯 TP2 HIT</b>\n\n"
+                        f"🪙 <b>{coin}</b>\n"
+                        f"📍 <b>Direction:</b> {direction}\n"
+                        f"💰 <b>Price:</b> {format_price(price)}\n"
+                        f"🎯 <b>TP2:</b> {format_price(trade['tp2'])}\n\n"
+                        f"<i>Trade monitoring closed.</i>"
+                    )
+
+                    send_trade_update(trade, message)
+                    trade["tp2_hit"] = True
+
+                    with ACTIVE_TRADES_LOCK:
+                        ACTIVE_TRADES.pop(coin, None)
+
+                    print("TP2 HIT:", coin, price)
+
+        except Exception as exc:
+            print("TRADE MONITOR ERROR:", repr(exc))
+
+        time.sleep(60)
 
 # ============================================================
 # DISPLAY HELPERS
