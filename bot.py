@@ -3906,20 +3906,13 @@ def build_entry_segments(
     # 1H = SETUP
     # ========================================================
 
-       setup_result = (
-        timeframe_results
-        .get("1h", {})
-        .get("entry_setup", {})
-    )
+    setup_result = timeframe_results.get("1h", {}).get("entry_setup", {})
 
-    one_hour_setup = setup_result.get(
-        "setup",
-        "WAIT",
-    )
+    one_hour_setup = setup_result.get("setup", "WAIT")
 
-    # 1H is confirmation, but it should not completely
-    # block a valid lower-timeframe trigger unless it
-    # explicitly conflicts with the higher-timeframe context.
+    # 1H is confirmation, but should not completely
+    # block a valid lower-timeframe trigger unless
+    # it explicitly conflicts with higher-timeframe direction.
     if one_hour_setup in ("Bullish", "Bearish"):
         if one_hour_setup != context_direction:
             return result
