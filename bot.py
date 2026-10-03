@@ -459,6 +459,12 @@ TIMEFRAMES = {
         "binance": "15m",
         "weight": 1.0,
     },
+    "30m": {
+        "coinbase": 1800,
+        "kraken": 30,
+        "binance": "30m",
+        "weight": 1.1,
+    },
     "1h": {
         "coinbase": 3600,
         "kraken": 60,
