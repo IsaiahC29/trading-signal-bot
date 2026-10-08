@@ -1280,16 +1280,15 @@ def get_kraken_candles(
         return []
 
 
-def get_binance_candles(
+def get_binance_futures_candles(
     symbol,
     interval,
     limit=200,
 ):
-
     try:
 
         response = requests.get(
-            BINANCE_KLINES_URL,
+            BINANCE_FUTURES_KLINES_URL,
             params={
                 "symbol": symbol,
                 "interval": interval,
@@ -1303,6 +1302,12 @@ def get_binance_candles(
         )
 
         if response.status_code != 200:
+
+            print(
+                "BINANCE FUTURES HTTP:",
+                response.status_code,
+                symbol,
+            )
 
             return []
 
@@ -1322,7 +1327,7 @@ def get_binance_candles(
     except Exception as exc:
 
         print(
-            "BINANCE ERROR:",
+            "BINANCE FUTURES ERROR:",
             repr(exc),
         )
 
