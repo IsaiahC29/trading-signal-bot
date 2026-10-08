@@ -199,8 +199,12 @@ KRAKEN_OHLC_URL = (
     "https://api.kraken.com/0/public/OHLC"
 )
 
-BINANCE_KLINES_URL = (
-    "https://api.binance.com/api/v3/klines"
+BINANCE_FUTURES_KLINES_URL = (
+    "https://fapi.binance.com/fapi/v1/klines"
+)
+
+BINANCE_FUTURES_EXCHANGE_INFO_URL = (
+    "https://fapi.binance.com/fapi/v1/exchangeInfo"
 )
 
 CMC_PRICE_URL = (
