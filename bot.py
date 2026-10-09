@@ -1334,6 +1334,69 @@ def get_binance_futures_candles(
         return []
 
 
+def get_binance_futures_universe():
+
+    try:
+
+        response = requests.get(
+            BINANCE_FUTURES_EXCHANGE_INFO_URL,
+            timeout=REQUEST_TIMEOUT,
+            headers={
+                "User-Agent": "SideShiftAI/4.0"
+            },
+        )
+
+        if response.status_code != 200:
+
+            print(
+                "FUTURES UNIVERSE HTTP:",
+                response.status_code,
+            )
+
+            return {}
+
+        data = response.json()
+
+        if not isinstance(data, dict):
+
+            return {}
+
+        contracts = {}
+
+        for item in data.get("symbols", []):
+
+            if item.get("status") != "TRADING":
+                continue
+
+            if item.get("contractType") != "PERPETUAL":
+                continue
+
+            if item.get("quoteAsset") != "USDT":
+                continue
+
+            base = item.get("baseAsset")
+            symbol = item.get("symbol")
+
+            if base and symbol:
+
+                contracts[base] = symbol
+
+        print(
+            "USDT PERPETUAL CONTRACTS FOUND:",
+            len(contracts),
+        )
+
+        return contracts
+
+    except Exception as exc:
+
+        print(
+            "FUTURES UNIVERSE ERROR:",
+            repr(exc),
+        )
+
+        return {}
+
 
 def get_market_candles(
     coin,
