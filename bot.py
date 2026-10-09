@@ -4352,9 +4352,62 @@ def scan_market():
         btc_regime,
     )
 
+    
     results = []
 
-    for coin in COINS:
+    futures_universe = (
+        get_binance_futures_universe()
+    )
+
+    original_symbols = {}
+    added_coins = []
+
+    if futures_universe:
+
+        scan_coins = []
+
+        for base, symbol in (
+            futures_universe.items()
+        ):
+
+            if base in COINS:
+
+                original_symbols[base] = (
+                    COINS[base].get("binance")
+                )
+
+                COINS[base]["binance"] = symbol
+
+            else:
+
+                COINS[base] = {
+                    "coinbase": "",
+                    "kraken": "",
+                    "binance": symbol,
+                    "cmc": base,
+                }
+
+                added_coins.append(base)
+
+            scan_coins.append(base)
+
+        print(
+            "SCANNING FUTURES CONTRACTS:",
+            len(scan_coins),
+        )
+
+    else:
+
+        print(
+            "FUTURES DISCOVERY FAILED — "
+            "USING EXISTING COIN LIST"
+        )
+
+        scan_coins = list(
+            COINS.keys()
+        )
+
+    for coin in scan_coins:
 
         try:
 
@@ -4376,6 +4429,20 @@ def scan_market():
                 coin,
                 repr(exc),
             )
+
+    for base in added_coins:
+
+        COINS.pop(
+            base,
+            None,
+        )
+
+    for base, symbol in (
+        original_symbols.items()
+    ):
+
+        COINS[base]["binance"] = symbol
+
 
     qualified = [
         x
