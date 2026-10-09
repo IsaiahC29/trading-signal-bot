@@ -1334,6 +1334,7 @@ def get_binance_futures_candles(
         return []
 
 
+
 def get_market_candles(
     coin,
     timeframe,
@@ -1345,77 +1346,21 @@ def get_market_candles(
         timeframe
     ]
 
-    providers = []
-
     candles = (
-        get_coinbase_candles(
-            config["coinbase"],
-            tf["coinbase"],
-        )
-    )
-
-    if len(candles) >= 60:
-
-        providers.append(
-            (
-                "Coinbase",
-                candles,
-            )
-        )
-
-    candles = (
-        get_kraken_candles(
-            config["kraken"],
-            tf["kraken"],
-        )
-    )
-
-    if len(candles) >= 60:
-
-        providers.append(
-            (
-                "Kraken",
-                candles,
-            )
-        )
-
-    candles = (
-        get_binance_candles(
+        get_binance_futures_candles(
             config["binance"],
             tf["binance"],
         )
     )
 
-    if len(candles) >= 60:
-
-        providers.append(
-            (
-                "Binance",
-                candles,
-            )
-        )
-
-    if not providers:
+    if len(candles) < 60:
 
         return [], None
 
-    # Select longest clean dataset.
-    providers.sort(
-        key=lambda x:
-        len(x[1]),
-        reverse=True,
-    )
-
-    selected = providers[0]
-
     return (
-        selected[1],
-        ", ".join(
-            p[0]
-            for p in providers
-        ),
+        candles,
+        "Binance Futures",
     )
-
 
 # ============================================================
 # COINMARKETCAP FALLBACK
