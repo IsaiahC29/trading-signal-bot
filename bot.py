@@ -1393,32 +1393,108 @@ def get_binance_futures_universe():
         print("OKX FUTURES UNIVERSE ERROR:", repr(exc))
         return {}
 
+
 def get_market_candles(
     coin,
     timeframe,
 ):
 
     config = COINS[coin]
+    tf = TIMEFRAMES[timeframe]
 
-    tf = TIMEFRAMES[
-        timeframe
-    ]
+    okx_bar = {
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1H",
+        "4h": "4H",
+        "1D": "1D",
+    }.get(timeframe)
 
-    candles = (
-        get_binance_futures_candles(
-            config["binance"],
-            tf["binance"],
-        )
+    if okx_bar:
+        try:
+            response = requests.get(
+                OKX_MARKET_CANDLES_URL,
+                params={
+                    "instId": f"{coin}-USDT-SWAP",
+                    "bar": okx_bar,
+                    "limit": 200,
+                },
+                timeout=REQUEST_TIMEOUT,
+                headers={
+                    "User-Agent": "SideShiftAI/4.0"
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+
+                if data.get("code") == "0":
+                    candles = []
+
+                    for row in data.get("data", []):
+                        try:
+                            if len(row) > 8 and str(row[8]) != "1":
+                                continue
+
+                            candles.append({
+                                "timestamp": int(row[0]),
+                                "open": float(row[1]),
+                                "high": float(row[2]),
+                                "low": float(row[3]),
+                                "close": float(row[4]),
+                                "volume": float(row[6]),
+                            })
+
+                        except (TypeError, ValueError, IndexError):
+                            continue
+
+                    candles.sort(
+                        key=lambda item: item["timestamp"]
+                    )
+
+                    if len(candles) >= 60:
+                        return candles, "OKX Perpetuals"
+
+                    print(
+                        "OKX CANDLES INSUFFICIENT:",
+                        coin,
+                        timeframe,
+                        len(candles),
+                    )
+
+                else:
+                    print(
+                        "OKX CANDLES API ERROR:",
+                        data.get("msg"),
+                    )
+
+            else:
+                print(
+                    "OKX CANDLES HTTP:",
+                    response.status_code,
+                    coin,
+                    timeframe,
+                )
+
+        except Exception as exc:
+            print(
+                "OKX CANDLES ERROR:",
+                coin,
+                timeframe,
+                repr(exc),
+            )
+
+    # Keep Binance Futures as the fallback.
+    candles = get_binance_futures_candles(
+        config["binance"],
+        tf["binance"],
     )
 
-    if len(candles) < 60:
+    if len(candles) >= 60:
+        return candles, "Binance Futures"
 
-        return [], None
-
-    return (
-        candles,
-        "Binance Futures",
-    )
+    return [], None
 
 # ============================================================
 # COINMARKETCAP FALLBACK
