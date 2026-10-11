@@ -1342,69 +1342,56 @@ def get_binance_futures_candles(
         return []
 
 
+
 def get_binance_futures_universe():
 
     try:
-
         response = requests.get(
-            BINANCE_FUTURES_EXCHANGE_INFO_URL,
+            OKX_PUBLIC_INSTRUMENTS_URL,
+            params={"instType": "SWAP"},
             timeout=REQUEST_TIMEOUT,
-            headers={
-                "User-Agent": "SideShiftAI/4.0"
-            },
+            headers={"User-Agent": "SideShiftAI/4.0"},
         )
 
         if response.status_code != 200:
-
-            print(
-                "FUTURES UNIVERSE HTTP:",
-                response.status_code,
-            )
-
+            print("OKX FUTURES UNIVERSE HTTP:", response.status_code)
             return {}
 
         data = response.json()
 
-        if not isinstance(data, dict):
-
+        if data.get("code") != "0":
+            print("OKX FUTURES UNIVERSE ERROR:", data.get("msg"))
             return {}
 
         contracts = {}
 
-        for item in data.get("symbols", []):
+        for item in data.get("data", []):
+            inst_id = item.get("instId", "")
 
-            if item.get("status") != "TRADING":
+            if item.get("state") != "live":
                 continue
 
-            if item.get("contractType") != "PERPETUAL":
+            if item.get("settleCcy") != "USDT":
                 continue
 
-            if item.get("quoteAsset") != "USDT":
+            if not inst_id.endswith("-USDT-SWAP"):
                 continue
 
-            base = item.get("baseAsset")
-            symbol = item.get("symbol")
+            base = inst_id[:-len("-USDT-SWAP")]
 
-            if base and symbol:
+            if base and base.isalnum():
+                contracts[base] = base + "USDT"
 
-                contracts[base] = symbol
+        print("OKX USDT PERPETUAL CONTRACTS FOUND:", len(contracts))
 
-        print(
-            "USDT PERPETUAL CONTRACTS FOUND:",
-            len(contracts),
-        )
+        if not contracts:
+            print("OKX FUTURES UNIVERSE EMPTY — CHECK API RESPONSE")
 
         return contracts
 
     except Exception as exc:
-
-        print(
-            "FUTURES UNIVERSE ERROR:",
-            repr(exc),
-        )
-
+        print("OKX FUTURES UNIVERSE ERROR:", repr(exc))
         return {}
-
 
 def get_market_candles(
     coin,
