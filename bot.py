@@ -207,6 +207,14 @@ BINANCE_FUTURES_EXCHANGE_INFO_URL = (
     "https://fapi.binance.com/fapi/v1/exchangeInfo"
 )
 
+OKX_PUBLIC_INSTRUMENTS_URL = (
+    "https://us.okx.com/api/v5/public/instruments"
+)
+
+OKX_MARKET_CANDLES_URL = (
+    "https://us.okx.com/api/v5/market/candles"
+)
+
 CMC_PRICE_URL = (
     "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
 )
