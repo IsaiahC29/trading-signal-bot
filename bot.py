@@ -4551,7 +4551,7 @@ def scan_market():
 
 def reset_signal_day():
 
-        today = (
+    today = (
         datetime.now(
             ZoneInfo("America/New_York")
         )
