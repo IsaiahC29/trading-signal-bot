@@ -3,6 +3,7 @@ import html
 import time
 import threading
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 import feedparser
@@ -4550,9 +4551,9 @@ def scan_market():
 
 def reset_signal_day():
 
-    today = (
+        today = (
         datetime.now(
-            timezone.utc
+            ZoneInfo("America/New_York")
         )
         .date()
         .isoformat()
