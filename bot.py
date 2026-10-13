@@ -5406,7 +5406,18 @@ def run_signal_engine():
                     coin,
                     "free",
                 )
+                signal = analysis["signal"]
 
+                save_signal_record(
+                    "free",
+                    coin,
+                    signal["direction"],
+                    signal["entry"],
+                    signal["invalidation"],
+                    signal["target_1"],
+                    signal["target_2"],
+                    signal["target_3"],
+                )
                 free_sent += 1
 
                 register_active_trade(
@@ -5473,7 +5484,18 @@ def run_signal_engine():
                     coin,
                     "vip",
                 )
+                signal = analysis["signal"]
 
+                save_signal_record(
+                    "vip",
+                    coin,
+                    signal["direction"],
+                    signal["entry"],
+                    signal["invalidation"],
+                    signal["target_1"],
+                    signal["target_2"],
+                    signal["target_3"],
+                )
                 vip_sent += 1
                 
                 register_active_trade(
@@ -6607,7 +6629,9 @@ def start_background_engines():
 # ============================================================
 # START
 # ============================================================
+init_reporting_db()
 start_background_engines()
+
 if __name__ == "__main__":
 
     print(
