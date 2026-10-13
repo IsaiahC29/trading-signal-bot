@@ -5412,13 +5412,14 @@ def run_signal_engine():
                 FREE_SIGNAL_CHAT_ID,
             ):
 
+                
                 mark_signal_sent(
                     coin,
                     "free",
                 )
                 signal = analysis["signal"]
 
-                save_signal_record(
+                record_id = save_signal_record(
                     "free",
                     coin,
                     signal["direction"],
@@ -5428,13 +5429,15 @@ def run_signal_engine():
                     signal["target_2"],
                     signal["target_3"],
                 )
+
                 free_sent += 1
 
                 register_active_trade(
                     analysis,
-                    free_sent=True,
-                    vip_sent=False,
+                    record_id,
+                    "free",
                 )
+
 
                 print(
                    "FREE SIGNAL SENT:",
@@ -5498,7 +5501,7 @@ def run_signal_engine():
 
                 
                 record_id = save_signal_record(
-                    "free",
+                    "vip",
                     coin,
                     signal["direction"],
                     signal["entry"],
@@ -5511,16 +5514,11 @@ def run_signal_engine():
                 register_active_trade(
                     analysis,
                     record_id,
-                    "free",
+                    "vip",
                 )
 
                 vip_sent += 1
                 
-                register_active_trade(
-                    analysis,
-                    free_sent=False,
-                    vip_sent=True,
-                )
                 print(
                     "VIP SIGNAL SENT:",
                     coin,
