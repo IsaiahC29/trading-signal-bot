@@ -4679,6 +4679,7 @@ def mark_signal_sent(
             SIGNAL_STATE[
                 "last_vip_signal"
             ][coin] = time.time()
+
 def register_active_trade(analysis, free_sent=False, vip_sent=False):
     if not (free_sent or vip_sent):
         return
@@ -4687,21 +4688,51 @@ def register_active_trade(analysis, free_sent=False, vip_sent=False):
     if not signal:
         return
 
-    levels = signal.get("levels") or {}
     coin = analysis.get("coin")
-
     if not coin:
+        return
+
+    published_direction = signal.get("direction", "")
+
+    if published_direction in ("CALL / LONG", "LONG"):
+        direction = "LONG"
+    elif published_direction in ("PUT / SHORT", "SHORT"):
+        direction = "SHORT"
+    else:
+        print(
+            "ACTIVE TRADE SKIPPED: unsupported direction",
+            coin,
+            published_direction,
+        )
+        return
+
+    entry = signal.get("entry")
+    stop = signal.get("invalidation")
+    tp1 = signal.get("target_1")
+    tp2 = signal.get("target_2")
+    tp3 = signal.get("target_3")
+
+    if any(
+        value is None
+        for value in (entry, stop, tp1, tp2, tp3)
+    ):
+        print(
+            "ACTIVE TRADE SKIPPED: missing entry/risk targets",
+            coin,
+        )
         return
 
     trade = {
         "coin": coin,
-        "direction": levels.get("direction"),
-        "entry": levels.get("entry"),
-        "stop": levels.get("stop"),
-        "tp1": levels.get("tp1"),
-        "tp2": levels.get("tp2"),
+        "direction": direction,
+        "entry": entry,
+        "stop": stop,
+        "tp1": tp1,
+        "tp2": tp2,
+        "tp3": tp3,
         "tp1_hit": False,
         "tp2_hit": False,
+        "tp3_hit": False,
         "stop_hit": False,
         "free_chat_id": FREE_SIGNAL_CHAT_ID if free_sent else None,
         "vip_chat_id": VIP_SIGNAL_CHAT_ID if vip_sent else None,
@@ -4719,6 +4750,7 @@ def register_active_trade(analysis, free_sent=False, vip_sent=False):
         "stop=", trade["stop"],
         "tp1=", trade["tp1"],
         "tp2=", trade["tp2"],
+        "tp3=", trade["tp3"],
     )
 
 
