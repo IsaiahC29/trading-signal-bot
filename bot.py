@@ -4784,8 +4784,14 @@ def mark_signal_sent(
                 "last_vip_signal"
             ][coin] = time.time()
 
-def register_active_trade(analysis, free_sent=False, vip_sent=False):
-    if not (free_sent or vip_sent):
+
+def register_active_trade(analysis, record_id, audience):
+    if not record_id:
+        print(
+            "ACTIVE TRADE ERROR: missing database record ID",
+            analysis.get("coin"),
+            audience,
+        )
         return
 
     signal = analysis.get("signal")
@@ -4826,7 +4832,15 @@ def register_active_trade(analysis, free_sent=False, vip_sent=False):
         )
         return
 
+    chat_id = (
+        FREE_SIGNAL_CHAT_ID
+        if audience == "free"
+        else VIP_SIGNAL_CHAT_ID
+    )
+
     trade = {
+        "record_id": record_id,
+        "audience": audience,
         "coin": coin,
         "direction": direction,
         "entry": entry,
@@ -4838,25 +4852,21 @@ def register_active_trade(analysis, free_sent=False, vip_sent=False):
         "tp2_hit": False,
         "tp3_hit": False,
         "stop_hit": False,
-        "free_chat_id": FREE_SIGNAL_CHAT_ID if free_sent else None,
-        "vip_chat_id": VIP_SIGNAL_CHAT_ID if vip_sent else None,
+        "free_chat_id": chat_id if audience == "free" else None,
+        "vip_chat_id": chat_id if audience == "vip" else None,
         "created_at": time.time(),
     }
 
     with ACTIVE_TRADES_LOCK:
-        ACTIVE_TRADES[coin] = trade
+        ACTIVE_TRADES[str(record_id)] = trade
 
     print(
         "ACTIVE TRADE REGISTERED:",
-        coin,
-        trade["direction"],
-        "entry=", trade["entry"],
-        "stop=", trade["stop"],
-        "tp1=", trade["tp1"],
-        "tp2=", trade["tp2"],
-        "tp3=", trade["tp3"],
+        "record_id=", record_id,
+        "audience=", audience,
+        "coin=", coin,
+        "direction=", direction,
     )
-
 
 def get_monitor_price(coin):
     try:
