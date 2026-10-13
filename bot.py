@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 import feedparser
+import psycopg
 from flask import Flask, request, jsonify
 
 
@@ -48,6 +49,109 @@ from flask import Flask, request, jsonify
 # ============================================================
 
 app = Flask(__name__)
+
+
+# ============================================================
+# POSTGRESQL - PERSISTENT SIGNAL REPORTING
+# ============================================================
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+
+def init_reporting_db():
+    if not DATABASE_URL:
+        print("REPORTING DB ERROR: DATABASE_URL is not configured.")
+        return False
+
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS signal_records (
+                        id BIGSERIAL PRIMARY KEY,
+                        audience TEXT NOT NULL,
+                        coin TEXT NOT NULL,
+                        direction TEXT NOT NULL,
+                        entry_price DOUBLE PRECISION NOT NULL,
+                        stop_price DOUBLE PRECISION NOT NULL,
+                        tp1_price DOUBLE PRECISION NOT NULL,
+                        tp2_price DOUBLE PRECISION NOT NULL,
+                        tp3_price DOUBLE PRECISION NOT NULL,
+                        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        report_date DATE NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'OPEN',
+                        exit_price DOUBLE PRECISION,
+                        return_pct DOUBLE PRECISION,
+                        outcome_updated_at TIMESTAMPTZ,
+                        UNIQUE (audience, id)
+                    )
+                """)
+            conn.commit()
+
+        print("REPORTING DB: signal_records table is ready.")
+        return True
+
+    except Exception as exc:
+        print("REPORTING DB INIT ERROR:", repr(exc))
+        return False
+
+
+def save_signal_record(
+    audience,
+    coin,
+    direction,
+    entry,
+    stop,
+    tp1,
+    tp2,
+    tp3,
+):
+    if not DATABASE_URL:
+        print("REPORTING DB ERROR: cannot save signal without DATABASE_URL.")
+        return False
+
+    try:
+        report_date = datetime.now(
+            ZoneInfo("America/New_York")
+        ).date()
+
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO signal_records (
+                        audience, coin, direction,
+                        entry_price, stop_price,
+                        tp1_price, tp2_price, tp3_price,
+                        report_date, status
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'OPEN')
+                    RETURNING id
+                """, (
+                    audience,
+                    coin,
+                    direction,
+                    float(entry),
+                    float(stop),
+                    float(tp1),
+                    float(tp2),
+                    float(tp3),
+                    report_date,
+                ))
+                record_id = cur.fetchone()[0]
+            conn.commit()
+
+        print(
+            "REPORTING DB: saved signal",
+            record_id,
+            audience,
+            coin,
+            direction,
+        )
+        return record_id
+
+    except Exception as exc:
+        print("REPORTING DB SAVE ERROR:", repr(exc))
+        return False
 
 
 # ============================================================
