@@ -5496,8 +5496,9 @@ def run_signal_engine():
                 )
                 signal = analysis["signal"]
 
-                save_signal_record(
-                    "vip",
+                
+                record_id = save_signal_record(
+                    "free",
                     coin,
                     signal["direction"],
                     signal["entry"],
@@ -5506,6 +5507,13 @@ def run_signal_engine():
                     signal["target_2"],
                     signal["target_3"],
                 )
+
+                register_active_trade(
+                    analysis,
+                    record_id,
+                    "free",
+                )
+
                 vip_sent += 1
                 
                 register_active_trade(
