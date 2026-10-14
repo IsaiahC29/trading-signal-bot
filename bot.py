@@ -320,6 +320,128 @@ OKX_MARKET_CANDLES_URL = (
     "https://us.okx.com/api/v5/market/candles"
 )
 
+# ============================================================
+# BYDFI CONTRACT DISCOVERY — INITIAL VERIFICATION
+# ============================================================
+
+BYDFI_BASE_URL = "https://api.bydfi.com/api"
+
+BYDFI_EXCHANGE_INFO_URL = (
+    BYDFI_BASE_URL + "/v1/fapi/market/exchange_info"
+)
+
+
+def inspect_bydfi_contracts():
+    """
+    Diagnostic first step:
+    inspect BYDFi's public contract response before enabling
+    new markets in the signal engine.
+    """
+    try:
+        response = requests.get(
+            BYDFI_EXCHANGE_INFO_URL,
+            timeout=REQUEST_TIMEOUT,
+            headers={
+                "User-Agent": "SideShiftAI/4.0",
+                "Accept": "application/json",
+            },
+        )
+
+        print(
+            "BYDFI EXCHANGE INFO HTTP:",
+            response.status_code,
+        )
+
+        response.raise_for_status()
+        payload = response.json()
+
+        if isinstance(payload, list):
+            rows = payload
+        elif isinstance(payload, dict):
+            rows = []
+
+            for key in (
+                "data",
+                "result",
+                "list",
+                "rows",
+                "symbols",
+                "contracts",
+            ):
+                value = payload.get(key)
+
+                if isinstance(value, list):
+                    rows = value
+                    break
+
+                if isinstance(value, dict):
+                    for nested_key in (
+                        "list",
+                        "rows",
+                        "symbols",
+                        "contracts",
+                        "data",
+                    ):
+                        nested = value.get(nested_key)
+
+                        if isinstance(nested, list):
+                            rows = nested
+                            break
+
+                    if rows:
+                        break
+
+            print(
+                "BYDFI RESPONSE KEYS:",
+                list(payload.keys()),
+            )
+        else:
+            print(
+                "BYDFI ERROR: unexpected response type:",
+                type(payload).__name__,
+            )
+            return False
+
+        print(
+            "BYDFI CONTRACT ROWS FOUND:",
+            len(rows),
+        )
+
+        for index, item in enumerate(rows[:5], start=1):
+            if isinstance(item, dict):
+                print(
+                    f"BYDFI SAMPLE {index}:",
+                    {
+                        key: item.get(key)
+                        for key in (
+                            "symbol",
+                            "contractCode",
+                            "baseAsset",
+                            "quoteAsset",
+                            "settleCoin",
+                            "marginCoin",
+                            "contractType",
+                            "status",
+                            "state",
+                        )
+                        if key in item
+                    },
+                )
+            else:
+                print(
+                    f"BYDFI SAMPLE {index}:",
+                    str(item)[:250],
+                )
+
+        return bool(rows)
+
+    except Exception as exc:
+        print(
+            "BYDFI CONTRACT DISCOVERY ERROR:",
+            repr(exc),
+        )
+        return False
+
 CMC_PRICE_URL = (
     "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
 )
@@ -6666,6 +6788,7 @@ def start_background_engines():
 # START
 # ============================================================
 init_reporting_db()
+inspect_bydfi_contracts()
 start_background_engines()
 
 if __name__ == "__main__":
