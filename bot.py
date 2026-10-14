@@ -6643,6 +6643,13 @@ def start_background_engines():
 
         signal_thread.start()
 
+
+    monitor_thread = threading.Thread(
+        target=monitor_active_trades,
+        daemon=True,
+    )
+    monitor_thread.start()
+
     if NEWS_CHAT_ID:
 
         news_thread = (
