@@ -4898,6 +4898,7 @@ def send_trade_update(trade, message):
     return sent
 
 
+
 def monitor_active_trades():
     print("SideShift trade monitor started.")
 
@@ -4906,9 +4907,14 @@ def monitor_active_trades():
             with ACTIVE_TRADES_LOCK:
                 trades = list(ACTIVE_TRADES.items())
 
-            for coin, trade in trades:
-                price = get_monitor_price(coin)
+            for trade_id, trade in trades:
+                coin = trade.get("coin")
+                record_id = trade.get("record_id")
+                if not coin or not record_id:
+                    print("MONITOR SKIPPED: missing coin or record ID")
+                    continue
 
+                price = get_monitor_price(coin)
                 if price is None:
                     continue
 
@@ -4918,68 +4924,75 @@ def monitor_active_trades():
                     stop_hit = price <= trade["stop"]
                     tp1_hit = price >= trade["tp1"]
                     tp2_hit = price >= trade["tp2"]
-
+                    tp3_hit = price >= trade["tp3"]
                 elif direction == "SHORT":
                     stop_hit = price >= trade["stop"]
                     tp1_hit = price <= trade["tp1"]
                     tp2_hit = price <= trade["tp2"]
-
+                    tp3_hit = price <= trade["tp3"]
                 else:
                     continue
 
+                audience = trade.get("audience", "unknown")
+                prefix = (
+                    f"<b>🪙 {coin}</b>\n"
+                    f"📍 <b>Direction:</b> {direction}\n"
+                    f"🆔 <b>Signal ID:</b> {record_id}\n"
+                    f"👥 <b>Audience:</b> {audience.upper()}\n"
+                    f"💰 <b>Price:</b> {format_price(price)}\n\n"
+                )
+
                 if stop_hit and not trade["stop_hit"]:
                     message = (
-                        f"<b>🛑 STOP LOSS HIT</b>\n\n"
-                        f"🪙 <b>{coin}</b>\n"
-                        f"📍 <b>Direction:</b> {direction}\n"
-                        f"💰 <b>Price:</b> {format_price(price)}\n\n"
-                        f"<i>Trade monitoring closed.</i>"
+                        "<b>🛑 STOP LOSS HIT</b>\n\n"
+                        + prefix
+                        + "<i>Trade monitoring closed.</i>"
                     )
-
                     send_trade_update(trade, message)
                     trade["stop_hit"] = True
-
                     with ACTIVE_TRADES_LOCK:
-                        ACTIVE_TRADES.pop(coin, None)
-
-                    print("STOP LOSS HIT:", coin, price)
+                        ACTIVE_TRADES.pop(trade_id, None)
+                    print("STOP LOSS HIT:", record_id, coin, price)
                     continue
 
                 if tp1_hit and not trade["tp1_hit"]:
                     message = (
-                        f"<b>🎯 TP1 HIT</b>\n\n"
-                        f"🪙 <b>{coin}</b>\n"
-                        f"📍 <b>Direction:</b> {direction}\n"
-                        f"💰 <b>Price:</b> {format_price(price)}\n"
-                        f"🎯 <b>TP1:</b> {format_price(trade['tp1'])}\n"
+                        "<b>🎯 TP1 HIT</b>\n\n"
+                        + prefix
+                        + f"🎯 <b>TP1:</b> {format_price(trade['tp1'])}"
                     )
-
                     send_trade_update(trade, message)
                     trade["tp1_hit"] = True
-
                     with ACTIVE_TRADES_LOCK:
-                        if coin in ACTIVE_TRADES:
-                            ACTIVE_TRADES[coin]["tp1_hit"] = True
-
-                    print("TP1 HIT:", coin, price)
+                        if trade_id in ACTIVE_TRADES:
+                            ACTIVE_TRADES[trade_id]["tp1_hit"] = True
+                    print("TP1 HIT:", record_id, coin, price)
 
                 if tp2_hit and not trade["tp2_hit"]:
                     message = (
-                        f"<b>🎯 TP2 HIT</b>\n\n"
-                        f"🪙 <b>{coin}</b>\n"
-                        f"📍 <b>Direction:</b> {direction}\n"
-                        f"💰 <b>Price:</b> {format_price(price)}\n"
-                        f"🎯 <b>TP2:</b> {format_price(trade['tp2'])}\n\n"
-                        f"<i>Trade monitoring closed.</i>"
+                        "<b>🎯 TP2 HIT</b>\n\n"
+                        + prefix
+                        + f"🎯 <b>TP2:</b> {format_price(trade['tp2'])}"
                     )
-
                     send_trade_update(trade, message)
                     trade["tp2_hit"] = True
-
                     with ACTIVE_TRADES_LOCK:
-                        ACTIVE_TRADES.pop(coin, None)
+                        if trade_id in ACTIVE_TRADES:
+                            ACTIVE_TRADES[trade_id]["tp2_hit"] = True
+                    print("TP2 HIT:", record_id, coin, price)
 
-                    print("TP2 HIT:", coin, price)
+                if tp3_hit and not trade["tp3_hit"]:
+                    message = (
+                        "<b>🏆 TP3 HIT</b>\n\n"
+                        + prefix
+                        + f"🎯 <b>TP3:</b> {format_price(trade['tp3'])}\n\n"
+                        + "<i>Target monitoring closed.</i>"
+                    )
+                    send_trade_update(trade, message)
+                    trade["tp3_hit"] = True
+                    with ACTIVE_TRADES_LOCK:
+                        ACTIVE_TRADES.pop(trade_id, None)
+                    print("TP3 HIT:", record_id, coin, price)
 
         except Exception as exc:
             print("TRADE MONITOR ERROR:", repr(exc))
