@@ -321,131 +321,102 @@ OKX_MARKET_CANDLES_URL = (
     "https://us.okx.com/api/v5/market/candles"
 )
 
+
 # ============================================================
-# BYDFI CONTRACT DISCOVERY — INITIAL VERIFICATION
+# BYDFI CONTRACT DISCOVERY — CCXT
 # ============================================================
 
-BYDFI_BASE_URL = "https://api.bydfi.com/api"
-
-BYDFI_EXCHANGE_INFO_URL = (
-    BYDFI_BASE_URL + "/v1/fapi/market/exchange_info"
-)
+BYDFI_PERPETUAL_MARKETS = {}
+BYDFI_MARKET_DISCOVERY_OK = False
 
 
 def inspect_bydfi_contracts():
     """
-    Diagnostic first step:
-    inspect BYDFi's public contract response before enabling
-    new markets in the signal engine.
+    Discover BYDFi perpetual swap markets through CCXT.
+    Diagnostic only: does not place orders.
     """
+    global BYDFI_PERPETUAL_MARKETS
+    global BYDFI_MARKET_DISCOVERY_OK
+
     try:
-        response = requests.get(
-            BYDFI_EXCHANGE_INFO_URL,
-            timeout=REQUEST_TIMEOUT,
-            headers={
-                "User-Agent": "SideShiftAI/4.0",
-                "Accept": "application/json",
-            },
-        )
+        exchange = ccxt.bydfi({
+            "enableRateLimit": True,
+            "timeout": int(REQUEST_TIMEOUT * 1000),
+        })
 
-        print(
-            "BYDFI EXCHANGE INFO HTTP:",
-            response.status_code,
-        )
+        markets = exchange.load_markets()
 
-        response.raise_for_status()
-        payload = response.json()
-
-        if isinstance(payload, list):
-            rows = payload
-        elif isinstance(payload, dict):
-            rows = []
-
-            for key in (
-                "data",
-                "result",
-                "list",
-                "rows",
-                "symbols",
-                "contracts",
-            ):
-                value = payload.get(key)
-
-                if isinstance(value, list):
-                    rows = value
-                    break
-
-                if isinstance(value, dict):
-                    for nested_key in (
-                        "list",
-                        "rows",
-                        "symbols",
-                        "contracts",
-                        "data",
-                    ):
-                        nested = value.get(nested_key)
-
-                        if isinstance(nested, list):
-                            rows = nested
-                            break
-
-                    if rows:
-                        break
-
-            print(
-                "BYDFI RESPONSE KEYS:",
-                list(payload.keys()),
-            )
-        else:
-            print(
-                "BYDFI ERROR: unexpected response type:",
-                type(payload).__name__,
-            )
+        if not isinstance(markets, dict) or not markets:
+            print("BYDFI DISCOVERY ERROR: No markets returned.")
+            BYDFI_MARKET_DISCOVERY_OK = False
             return False
 
-        print(
-            "BYDFI CONTRACT ROWS FOUND:",
-            len(rows),
-        )
+        perpetuals = {}
+        excluded_spot = 0
+        excluded_expiring = 0
+        excluded_inactive = 0
 
-        for index, item in enumerate(rows[:5], start=1):
-            if isinstance(item, dict):
-                print(
-                    f"BYDFI SAMPLE {index}:",
-                    {
-                        key: item.get(key)
-                        for key in (
-                            "symbol",
-                            "contractCode",
-                            "baseAsset",
-                            "quoteAsset",
-                            "settleCoin",
-                            "marginCoin",
-                            "contractType",
-                            "status",
-                            "state",
-                        )
-                        if key in item
-                    },
-                )
-            else:
-                print(
-                    f"BYDFI SAMPLE {index}:",
-                    str(item)[:250],
-                )
+        for symbol, market in markets.items():
+            if not isinstance(market, dict):
+                continue
 
-        return bool(rows)
+            if market.get("spot"):
+                excluded_spot += 1
+                continue
+
+            if not market.get("swap"):
+                if market.get("future") or market.get("expiry") is not None:
+                    excluded_expiring += 1
+                continue
+
+            if market.get("expiry") is not None:
+                excluded_expiring += 1
+                continue
+
+            if market.get("active") is False:
+                excluded_inactive += 1
+                continue
+
+            if not symbol or not market.get("base") or not market.get("quote"):
+                continue
+
+            perpetuals[symbol] = market
+
+        BYDFI_PERPETUAL_MARKETS = perpetuals
+        BYDFI_MARKET_DISCOVERY_OK = bool(perpetuals)
+
+        print("BYDFI CCXT MARKETS LOADED:", len(markets))
+        print("BYDFI PERPETUAL SWAPS FOUND:", len(perpetuals))
+        print("BYDFI SPOT MARKETS EXCLUDED:", excluded_spot)
+        print("BYDFI EXPIRING FUTURES EXCLUDED:", excluded_expiring)
+        print("BYDFI INACTIVE MARKETS EXCLUDED:", excluded_inactive)
+
+        for index, (symbol, market) in enumerate(
+            list(perpetuals.items())[:8], start=1
+        ):
+            print(f"BYDFI PERPETUAL SAMPLE {index}:", {
+                "symbol": symbol,
+                "base": market.get("base"),
+                "quote": market.get("quote"),
+                "settle": market.get("settle"),
+                "linear": market.get("linear"),
+                "inverse": market.get("inverse"),
+                "active": market.get("active"),
+                "swap": market.get("swap"),
+                "expiry": market.get("expiry"),
+            })
+
+        if not perpetuals:
+            print("BYDFI DISCOVERY WARNING: No eligible perpetuals found.")
+            return False
+
+        return True
 
     except Exception as exc:
-        print(
-            "BYDFI CONTRACT DISCOVERY ERROR:",
-            repr(exc),
-        )
+        BYDFI_MARKET_DISCOVERY_OK = False
+        BYDFI_PERPETUAL_MARKETS = {}
+        print("BYDFI CCXT DISCOVERY ERROR:", repr(exc))
         return False
-
-CMC_PRICE_URL = (
-    "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
-)
 
 
 # ============================================================
