@@ -341,8 +341,10 @@ def inspect_bydfi_contracts():
             "enableRateLimit": True,
             "timeout": int(REQUEST_TIMEOUT * 1000),
         })
-print("CCXT VERSION:", ccxt.__version__)
-print("BYDFI API URLS:", exchange.urls.get("api"))
+        
+        print("CCXT VERSION:", ccxt.__version__)
+        print("BYDFI API URLS:", exchange.urls.get("api"))
+
         markets = exchange.load_markets()
         perpetuals = {}
 
