@@ -5,4 +5,4 @@ pandas
 numpy
 gunicorn
 psycopg[binary]
-ccxt==4.5.88
+ccxt
