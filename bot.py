@@ -327,60 +327,70 @@ OKX_MARKET_CANDLES_URL = (
 # ============================================================
 
 
-BINANCE_PERPETUAL_MARKETS = {}
-BINANCE_MARKET_DISCOVERY_OK = False
+
+BYDFI_PERPETUAL_MARKETS = {}
+BYDFI_MARKET_DISCOVERY_OK = False
 
 
-def inspect_binance_perpetuals():
-    global BINANCE_PERPETUAL_MARKETS
-    global BINANCE_MARKET_DISCOVERY_OK
+def inspect_bydfi_contracts():
+    global BYDFI_PERPETUAL_MARKETS
+    global BYDFI_MARKET_DISCOVERY_OK
 
     try:
-        response = requests.get(
-            BINANCE_FUTURES_EXCHANGE_INFO_URL,
-            timeout=REQUEST_TIMEOUT,
-            headers={"User-Agent": "SideShiftAI/4.0"},
-        )
-        print("BINANCE FUTURES EXCHANGE INFO HTTP:", response.status_code)
-        response.raise_for_status()
-        payload = response.json()
+        exchange = ccxt.bydfi({
+            "enableRateLimit": True,
+            "timeout": REQUEST_TIMEOUT * 1000,
+            "options": {
+                "defaultType": "swap",
+            },
+        })
 
-        if not isinstance(payload, dict) or not isinstance(
-            payload.get("symbols"), list
-        ):
-            raise RuntimeError("Invalid Binance Futures response")
-
+        markets = exchange.load_markets()
         perpetuals = {}
 
-        for market in payload["symbols"]:
-            if market.get("contractType") != "PERPETUAL":
+        for market in markets.values():
+            if not market.get("active"):
                 continue
-            if market.get("status") != "TRADING":
+            if not market.get("swap"):
                 continue
-            if market.get("quoteAsset") != "USDT":
+            if market.get("quote") != "USDT":
+                continue
+            if market.get("settle") != "USDT":
                 continue
 
-            symbol = market.get("symbol", "")
-            base = market.get("baseAsset")
+            base = market.get("base")
+            symbol = market.get("symbol")
 
-            if base and symbol.endswith("USDT"):
+            if base and symbol:
                 perpetuals[base.upper()] = symbol
 
         if not perpetuals:
-            raise RuntimeError("No active USDT perpetuals found")
+            raise RuntimeError(
+                "No active BYDFi USDT perpetual contracts found"
+            )
 
-        BINANCE_PERPETUAL_MARKETS = perpetuals
-        BINANCE_MARKET_DISCOVERY_OK = True
+        BYDFI_PERPETUAL_MARKETS = perpetuals
+        BYDFI_MARKET_DISCOVERY_OK = True
 
-        print("BINANCE USDT PERPETUALS READY:", len(perpetuals))
-        print("PERPETUAL SAMPLE:", list(perpetuals.items())[:10])
+        print(
+            "BYDFI USDT PERPETUALS READY:",
+            len(perpetuals),
+        )
+        print(
+            "BYDFI PERPETUAL SAMPLE:",
+            list(perpetuals.items())[:10],
+        )
         return True
 
     except Exception as exc:
-        BINANCE_PERPETUAL_MARKETS = {}
-        BINANCE_MARKET_DISCOVERY_OK = False
-        print("BINANCE FUTURES DISCOVERY ERROR:", repr(exc))
+        BYDFI_PERPETUAL_MARKETS = {}
+        BYDFI_MARKET_DISCOVERY_OK = False
+        print(
+            "BYDFI FUTURES DISCOVERY ERROR:",
+            repr(exc),
+        )
         return False
+
 
 # ============================================================
 # COINGLASS V4
@@ -1506,17 +1516,22 @@ def get_binance_futures_candles(
 
 
 
+
 def get_bydfi_perpetual_universe():
-    # Keep the existing scanner interface, using Binance USDT perpetuals.
-    if not BINANCE_MARKET_DISCOVERY_OK:
-        print("BINANCE FUTURES UNAVAILABLE — SCANNING PAUSED")
+    if not BYDFI_MARKET_DISCOVERY_OK:
+        print("BYDFI FUTURES UNAVAILABLE — SCANNING PAUSED")
+        return {}
+
+    if not BYDFI_PERPETUAL_MARKETS:
+        print("BYDFI FUTURES UNIVERSE EMPTY — SCANNING PAUSED")
         return {}
 
     return {
-        base: BINANCE_PERPETUAL_MARKETS[base]
-        for base in COINS
-        if base in BINANCE_PERPETUAL_MARKETS
+        base: symbol
+        for base, symbol in BYDFI_PERPETUAL_MARKETS.items()
+        if base in COINS
     }
+
 
 
 def get_market_candles(coin, timeframe):
