@@ -328,129 +328,60 @@ OKX_MARKET_CANDLES_URL = (
 
 BYDFI_PERPETUAL_MARKETS = {}
 BYDFI_MARKET_DISCOVERY_OK = False
+BYDFI_EXCHANGE = None
 
 
 def inspect_bydfi_contracts():
-    """
-    Discover BYDFi perpetual swap markets through CCXT.
-    Diagnostic only: does not place orders.
-    """
     global BYDFI_PERPETUAL_MARKETS
     global BYDFI_MARKET_DISCOVERY_OK
+    global BYDFI_EXCHANGE
 
     try:
         exchange = ccxt.bydfi({
             "enableRateLimit": True,
             "timeout": int(REQUEST_TIMEOUT * 1000),
         })
-        print("CCXT VERSION:", ccxt.__version__)
-        print("BYDFI API URLS:", exchange.urls.get("api"))
-        
-        # Read-only tests of BYDFi public API routes
-        bydfi_base = "https://api.bydfi.com/api"
-        diagnostic_routes = [
-            "/v1/public/api_limits",
-            "/v1/public/api_limit",
-            "/v1/fapi/market/exchange_info",
-            "/v1/fapi/market/ticker/price?symbol=BTC-USDT",
-            "/v1/fapi/market/ticker/24hr?symbol=BTC-USDT",
-        ]
 
-        for route in diagnostic_routes:
-            try:
-                response = requests.get(
-                    bydfi_base + route,
-                    timeout=REQUEST_TIMEOUT,
-                    headers={"Accept": "application/json"},
-                )
-                print(
-                    "BYDFI ROUTE TEST:",
-                    route,
-                    "HTTP",
-                    response.status_code,
-                    "BODY",
-                    response.text[:250],
-                )
-            except Exception as route_exc:
-                print(
-                    "BYDFI ROUTE TEST ERROR:",
-                    route,
-                    repr(route_exc),
-                )
-
-        exchange.verbose = True
         markets = exchange.load_markets()
-
-        if not isinstance(markets, dict) or not markets:
-            print("BYDFI DISCOVERY ERROR: No markets returned.")
-            BYDFI_MARKET_DISCOVERY_OK = False
-            return False
-
         perpetuals = {}
-        excluded_spot = 0
-        excluded_expiring = 0
-        excluded_inactive = 0
 
         for symbol, market in markets.items():
-            if not isinstance(market, dict):
-                continue
-
-            if market.get("spot"):
-                excluded_spot += 1
-                continue
-
             if not market.get("swap"):
-                if market.get("future") or market.get("expiry") is not None:
-                    excluded_expiring += 1
                 continue
-
+            if market.get("spot"):
+                continue
             if market.get("expiry") is not None:
-                excluded_expiring += 1
                 continue
-
             if market.get("active") is False:
-                excluded_inactive += 1
+                continue
+            if market.get("quote") != "USDT":
+                continue
+            if market.get("settle") not in (None, "USDT"):
                 continue
 
-            if not symbol or not market.get("base") or not market.get("quote"):
-                continue
-
-            perpetuals[symbol] = market
-
-        BYDFI_PERPETUAL_MARKETS = perpetuals
-        BYDFI_MARKET_DISCOVERY_OK = bool(perpetuals)
-
-        print("BYDFI CCXT MARKETS LOADED:", len(markets))
-        print("BYDFI PERPETUAL SWAPS FOUND:", len(perpetuals))
-        print("BYDFI SPOT MARKETS EXCLUDED:", excluded_spot)
-        print("BYDFI EXPIRING FUTURES EXCLUDED:", excluded_expiring)
-        print("BYDFI INACTIVE MARKETS EXCLUDED:", excluded_inactive)
-
-        for index, (symbol, market) in enumerate(
-            list(perpetuals.items())[:8], start=1
-        ):
-            print(f"BYDFI PERPETUAL SAMPLE {index}:", {
-                "symbol": symbol,
-                "base": market.get("base"),
-                "quote": market.get("quote"),
-                "settle": market.get("settle"),
-                "linear": market.get("linear"),
-                "inverse": market.get("inverse"),
-                "active": market.get("active"),
-                "swap": market.get("swap"),
-                "expiry": market.get("expiry"),
-            })
+            base = market.get("base")
+            if base:
+                perpetuals[base.upper()] = {
+                    "symbol": symbol,
+                    "market": market,
+                }
 
         if not perpetuals:
-            print("BYDFI DISCOVERY WARNING: No eligible perpetuals found.")
-            return False
+            raise RuntimeError("No active BYDFi USDT perpetuals found")
 
+        BYDFI_EXCHANGE = exchange
+        BYDFI_PERPETUAL_MARKETS = perpetuals
+        BYDFI_MARKET_DISCOVERY_OK = True
+
+        print("BYDFI PERPETUAL MARKETS READY:", len(perpetuals))
+        print("BYDFI PERPETUAL SAMPLE:", list(perpetuals)[:10])
         return True
 
     except Exception as exc:
-        BYDFI_MARKET_DISCOVERY_OK = False
+        BYDFI_EXCHANGE = None
         BYDFI_PERPETUAL_MARKETS = {}
-        print("BYDFI CCXT DISCOVERY ERROR:", repr(exc))
+        BYDFI_MARKET_DISCOVERY_OK = False
+        print("BYDFI MARKET DATA ERROR:", repr(exc))
         return False
 
 
@@ -1577,158 +1508,66 @@ def get_binance_futures_candles(
 
 
 
-def get_binance_futures_universe():
-
-    try:
-        response = requests.get(
-            OKX_PUBLIC_INSTRUMENTS_URL,
-            params={"instType": "SWAP"},
-            timeout=REQUEST_TIMEOUT,
-            headers={"User-Agent": "SideShiftAI/4.0"},
-        )
-
-        if response.status_code != 200:
-            print("OKX FUTURES UNIVERSE HTTP:", response.status_code)
-            return {}
-
-        data = response.json()
-
-        if data.get("code") != "0":
-            print("OKX FUTURES UNIVERSE ERROR:", data.get("msg"))
-            return {}
-
-        contracts = {}
-
-        for item in data.get("data", []):
-            inst_id = item.get("instId", "")
-
-            if item.get("state") != "live":
-                continue
-
-            if item.get("settleCcy") != "USDT":
-                continue
-
-            if not inst_id.endswith("-USDT-SWAP"):
-                continue
-
-            base = inst_id[:-len("-USDT-SWAP")]
-
-            if base and base.isalnum():
-                contracts[base] = base + "USDT"
-
-        print("OKX USDT PERPETUAL CONTRACTS FOUND:", len(contracts))
-
-        if not contracts:
-            print("OKX FUTURES UNIVERSE EMPTY — CHECK API RESPONSE")
-
-        return contracts
-
-    except Exception as exc:
-        print("OKX FUTURES UNIVERSE ERROR:", repr(exc))
+def get_bydfi_perpetual_universe():
+    if not BYDFI_MARKET_DISCOVERY_OK:
+        print("BYDFI UNAVAILABLE — SCANNING PAUSED")
         return {}
 
+    return {
+        base: info["symbol"]
+        for base, info in BYDFI_PERPETUAL_MARKETS.items()
+    }
 
-def get_market_candles(
-    coin,
-    timeframe,
-):
 
-    config = COINS[coin]
-    tf = TIMEFRAMES[timeframe]
+def get_market_candles(coin, timeframe):
+    if not BYDFI_MARKET_DISCOVERY_OK or BYDFI_EXCHANGE is None:
+        print("BYDFI CANDLES UNAVAILABLE:", coin, timeframe)
+        return [], None
 
-    okx_bar = {
+    info = BYDFI_PERPETUAL_MARKETS.get(coin.upper())
+    if not info:
+        return [], None
+
+    timeframe_map = {
         "5m": "5m",
         "15m": "15m",
         "30m": "30m",
-        "1h": "1H",
-        "4h": "4H",
-        "1D": "1D",
-    }.get(timeframe)
+        "1h": "1h",
+        "4h": "4h",
+        "1D": "1d",
+    }
 
-    if okx_bar:
-        try:
-            response = requests.get(
-                OKX_MARKET_CANDLES_URL,
-                params={
-                    "instId": f"{coin}-USDT-SWAP",
-                    "bar": okx_bar,
-                    "limit": 200,
-                },
-                timeout=REQUEST_TIMEOUT,
-                headers={
-                    "User-Agent": "SideShiftAI/4.0"
-                },
-            )
+    try:
+        rows = BYDFI_EXCHANGE.fetch_ohlcv(
+            info["symbol"],
+            timeframe=timeframe_map[timeframe],
+            limit=200,
+        )
 
-            if response.status_code == 200:
-                data = response.json()
+        candles = [
+            {
+                "timestamp": int(row[0]),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+                "volume": float(row[5]),
+            }
+            for row in (rows or [])
+            if len(row) >= 6
+        ]
 
-                if data.get("code") == "0":
-                    candles = []
+        candles.sort(key=lambda item: item["timestamp"])
 
-                    for row in data.get("data", []):
-                        try:
-                            if len(row) > 8 and str(row[8]) != "1":
-                                continue
+        if len(candles) >= 60:
+            return candles, "BYDFi Perpetuals"
 
-                            candles.append({
-                                "timestamp": int(row[0]),
-                                "open": float(row[1]),
-                                "high": float(row[2]),
-                                "low": float(row[3]),
-                                "close": float(row[4]),
-                                "volume": float(row[6]),
-                            })
+        print("BYDFI INSUFFICIENT CANDLES:", coin, timeframe, len(candles))
+        return [], None
 
-                        except (TypeError, ValueError, IndexError):
-                            continue
-
-                    candles.sort(
-                        key=lambda item: item["timestamp"]
-                    )
-
-                    if len(candles) >= 60:
-                        return candles, "OKX Perpetuals"
-
-                    print(
-                        "OKX CANDLES INSUFFICIENT:",
-                        coin,
-                        timeframe,
-                        len(candles),
-                    )
-
-                else:
-                    print(
-                        "OKX CANDLES API ERROR:",
-                        data.get("msg"),
-                    )
-
-            else:
-                print(
-                    "OKX CANDLES HTTP:",
-                    response.status_code,
-                    coin,
-                    timeframe,
-                )
-
-        except Exception as exc:
-            print(
-                "OKX CANDLES ERROR:",
-                coin,
-                timeframe,
-                repr(exc),
-            )
-
-    # Keep Binance Futures as the fallback.
-    candles = get_binance_futures_candles(
-        config["binance"],
-        tf["binance"],
-    )
-
-    if len(candles) >= 60:
-        return candles, "Binance Futures"
-
-    return [], None
+    except Exception as exc:
+        print("BYDFI CANDLE ERROR:", coin, timeframe, repr(exc))
+        return [], None
 
 # ============================================================
 # COINMARKETCAP FALLBACK
@@ -4661,7 +4500,7 @@ def scan_market():
     results = []
 
     futures_universe = (
-        get_binance_futures_universe()
+        get_bydfi_perpetual_universe()
     )
 
     original_symbols = {}
