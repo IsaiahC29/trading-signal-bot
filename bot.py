@@ -322,74 +322,93 @@ OKX_MARKET_CANDLES_URL = (
 )
 
 
+
 # ============================================================
-# BYDFI CONTRACT DISCOVERY — CCXT
+# OKX USDT PERPETUAL DISCOVERY
 # ============================================================
 
+# Approved assets to scan. OKX must independently verify
+# that each one is a live USDT-settled perpetual swap.
+APPROVED_ASSETS = {
+    "BTC", "ETH", "XRP", "DOGE", "LINK", "DOT", "ADA",
+    "AVAX", "SUI", "LTC", "BNB", "SOL", "NEAR", "APT",
+    "ARB", "OP", "INJ", "FIL", "ATOM", "UNI", "AAVE",
+    "ETC", "ALGO", "XLM", "HBAR", "SEI", "TIA", "RENDER",
+    "WIF", "BONK", "FLOKI", "1000RATS", "SIREN", "PYTH",
+    "TSLA", "NVDA", "XAU", "XAG",
+}
+
+OKX_PERPETUAL_MARKETS = {}
+OKX_MARKET_DISCOVERY_OK = False
 
 
-BYDFI_PERPETUAL_MARKETS = {}
-BYDFI_MARKET_DISCOVERY_OK = False
-
-
-def inspect_bydfi_contracts():
-    global BYDFI_PERPETUAL_MARKETS
-    global BYDFI_MARKET_DISCOVERY_OK
+def inspect_okx_perpetuals():
+    global OKX_PERPETUAL_MARKETS
+    global OKX_MARKET_DISCOVERY_OK
 
     try:
-        exchange = ccxt.bydfi({
-            "enableRateLimit": True,
-            "timeout": REQUEST_TIMEOUT * 1000,
-            "options": {
-                "defaultType": "swap",
-            },
-        })
+        response = requests.get(
+            OKX_PUBLIC_INSTRUMENTS_URL,
+            params={"instType": "SWAP"},
+            timeout=REQUEST_TIMEOUT,
+            headers={"User-Agent": "SideShiftAI/4.0"},
+        )
 
-        markets = exchange.load_markets()
+        print("OKX INSTRUMENT DISCOVERY HTTP:", response.status_code)
+        response.raise_for_status()
+        payload = response.json()
+
+        if payload.get("code") != "0":
+            raise RuntimeError(
+                f"OKX instruments API error "
+                f"{payload.get('code')}: {payload.get('msg')}"
+            )
+
         perpetuals = {}
 
-        for market in markets.values():
-            if not market.get("active"):
+        for instrument in payload.get("data", []):
+            if instrument.get("instType") != "SWAP":
                 continue
-            if not market.get("swap"):
+            if instrument.get("settleCcy") != "USDT":
                 continue
-            if market.get("quote") != "USDT":
-                continue
-            if market.get("settle") != "USDT":
+            if instrument.get("state") != "live":
                 continue
 
-            base = market.get("base")
-            symbol = market.get("symbol")
+            base = (instrument.get("baseCcy") or "").upper()
+            inst_id = instrument.get("instId")
 
-            if base and symbol:
-                perpetuals[base.upper()] = symbol
+            if base in APPROVED_ASSETS and inst_id:
+                perpetuals[base] = inst_id
 
         if not perpetuals:
             raise RuntimeError(
-                "No active BYDFi USDT perpetual contracts found"
+                "No approved live OKX USDT perpetuals found"
             )
 
-        BYDFI_PERPETUAL_MARKETS = perpetuals
-        BYDFI_MARKET_DISCOVERY_OK = True
+        OKX_PERPETUAL_MARKETS = perpetuals
+        OKX_MARKET_DISCOVERY_OK = True
 
+        print("OKX APPROVED LIVE USDT PERPETUALS READY:", len(perpetuals))
+        print("OKX APPROVED PERPETUAL SAMPLE:", list(perpetuals.items())[:15])
         print(
-            "BYDFI USDT PERPETUALS READY:",
-            len(perpetuals),
-        )
-        print(
-            "BYDFI PERPETUAL SAMPLE:",
-            list(perpetuals.items())[:10],
+            "APPROVED ASSETS NOT AVAILABLE ON OKX:",
+            sorted(APPROVED_ASSETS - set(perpetuals)),
         )
         return True
 
     except Exception as exc:
-        BYDFI_PERPETUAL_MARKETS = {}
-        BYDFI_MARKET_DISCOVERY_OK = False
-        print(
-            "BYDFI FUTURES DISCOVERY ERROR:",
-            repr(exc),
-        )
+        OKX_PERPETUAL_MARKETS = {}
+        OKX_MARKET_DISCOVERY_OK = False
+        print("OKX FUTURES DISCOVERY ERROR:", repr(exc))
         return False
+
+
+def get_okx_perpetual_universe():
+    if not OKX_MARKET_DISCOVERY_OK:
+        print("OKX FUTURES UNAVAILABLE — SCANNING PAUSED")
+        return {}
+
+    return dict(OKX_PERPETUAL_MARKETS)
 
 
 # ============================================================
@@ -1538,14 +1557,14 @@ def get_bydfi_perpetual_universe():
 def get_market_candles(coin, timeframe):
     coin = coin.upper()
 
-    # Fail closed: only analyze coins confirmed as BYDFi
-    # USDT-margined perpetual contracts.
-    if not BYDFI_MARKET_DISCOVERY_OK:
-        print("BYDFI FUTURES UNAVAILABLE — CANDLES BLOCKED:", coin)
+    
+    # Only analyze approved assets verified by OKX discovery.
+    if not OKX_MARKET_DISCOVERY_OK:
+        print("OKX FUTURES UNAVAILABLE — CANDLES BLOCKED:", coin)
         return [], None
 
-    if coin not in BYDFI_PERPETUAL_MARKETS:
-        print("NOT A CONFIRMED BYDFI USDT PERPETUAL:", coin)
+    if coin not in APPROVED_ASSETS or coin not in OKX_PERPETUAL_MARKETS:
+        print("NOT AN APPROVED LIVE OKX USDT PERPETUAL:", coin)
         return [], None
 
     timeframe_map = {
@@ -1572,7 +1591,7 @@ def get_market_candles(coin, timeframe):
 
     # OKX is the candle-data source, not the execution venue.
     # The instrument must be a USDT-settled perpetual swap.
-    symbol = f"{coin}-USDT-SWAP"
+    symbol = OKX_PERPETUAL_MARKETS[coin]
 
     try:
         response = requests.get(
@@ -4585,7 +4604,7 @@ def scan_market():
     results = []
 
     futures_universe = (
-        get_bydfi_perpetual_universe()
+    get_okx_perpetual_universe()
     )
 
     original_symbols = {}
@@ -4627,7 +4646,7 @@ def scan_market():
 
     else:
         print(
-            "BYDFI FUTURES DISCOVERY FAILED — "
+            "OKX FUTURES DISCOVERY FAILED — "
             "SCANNING PAUSED"
         )
 
@@ -6720,7 +6739,7 @@ def start_background_engines():
 # START
 # ============================================================
 init_reporting_db()
-inspect_bydfi_contracts()
+inspect_okx_perpetuals()
 start_background_engines()
 
 if __name__ == "__main__":
