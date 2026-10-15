@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import requests
+import ccxt
 import feedparser
 import psycopg
 from flask import Flask, request, jsonify
