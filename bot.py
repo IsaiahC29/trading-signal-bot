@@ -1893,6 +1893,129 @@ def calculate_structure(
         "resistance": latest_high,
     }
 
+def detect_fair_value_gaps(candles, max_age=100):
+    """
+    Detect three-candle fair value gaps.
+
+    Bullish FVG:
+        Current candle's low > candle two bars earlier's high.
+
+    Bearish FVG:
+        Current candle's high < candle two bars earlier's low.
+
+    Tracks whether price has revisited or fully mitigated each zone.
+    Uses completed candles only to avoid treating a forming candle
+    as confirmed evidence.
+    """
+
+    result = {
+        "bullish": [],
+        "bearish": [],
+        "nearest_bullish": None,
+        "nearest_bearish": None,
+        "evidence": [],
+    }
+
+    if len(candles) < 3:
+        return result
+
+    # Exclude the newest candle because it may still be forming.
+    completed = candles[:-1]
+    if len(completed) < 3:
+        return result
+
+    start = max(2, len(completed) - max_age)
+
+    for i in range(start, len(completed)):
+        first = completed[i - 2]
+        middle = completed[i - 1]
+        third = completed[i]
+
+        # Ignore malformed or non-positive price data.
+        values = (
+            first.get("high"),
+            first.get("low"),
+            middle.get("high"),
+            middle.get("low"),
+            third.get("high"),
+            third.get("low"),
+            third.get("close"),
+        )
+
+        if any(v is None for v in values):
+            continue
+
+        try:
+            first_high = float(first["high"])
+            first_low = float(first["low"])
+            middle_high = float(middle["high"])
+            middle_low = float(middle["low"])
+            third_high = float(third["high"])
+            third_low = float(third["low"])
+            third_close = float(third["close"])
+        except (TypeError, ValueError):
+            continue
+
+        # Bullish imbalance: the third candle's low is above
+        # the first candle's high.
+        if third_low > first_high:
+            zone_low = first_high
+            zone_high = third_low
+
+            touched = any(
+                float(c["low"]) <= zone_high
+                and float(c["high"]) >= zone_low
+                for c in completed[i + 1:]
+            )
+
+            fully_filled = any(
+                float(c["low"]) <= zone_low
+                for c in completed[i + 1:]
+            )
+
+            result["bullish"].append({
+                "low": zone_low,
+                "high": zone_high,
+                "midpoint": (zone_low + zone_high) / 2,
+                "created_index": i,
+                "age": len(completed) - 1 - i,
+                "touched": touched,
+                "fully_filled": fully_filled,
+                "impulse_range": middle_high - middle_low,
+                "formation_close": third_close,
+            })
+
+        # Bearish imbalance: the third candle's high is below
+        # the first candle's low.
+        if third_high < first_low:
+            zone_low = third_high
+            zone_high = first_low
+
+            touched = any(
+                float(c["high"]) >= zone_low
+                and float(c["low"]) <= zone_high
+                for c in completed[i + 1:]
+            )
+
+            fully_filled = any(
+                float(c["high"]) >= zone_high
+                for c in completed[i + 1:]
+            )
+
+            result["bearish"].append({
+                "low": zone_low,
+                "high": zone_high,
+                "midpoint": (zone_low + zone_high) / 2,
+                "created_index": i,
+                "age": len(completed) - 1 - i,
+                "touched": touched,
+                "fully_filled": fully_filled,
+                "impulse_range": middle_high - middle_low,
+                "formation_close": third_close,
+            })
+
+    return result
+
 def detect_smc_structure(candles):
     """
     Objective Smart Money Concepts structure layer.
@@ -2091,6 +2214,53 @@ def detect_entry_setup(candles, technical):
 
     smc = detect_smc_structure(candles)
 
+    fvg_data = detect_fair_value_gaps(candles)
+
+    current_price = float(candles[-1]["close"])
+
+    def nearest_active_fvg(zones, direction):
+        active = [
+            zone for zone in zones
+            if not zone["fully_filled"]
+            and zone["age"] <= 50
+        ]
+
+        if not active:
+            return None
+
+        # Prefer zones closest to the current market price.
+        active.sort(
+            key=lambda zone: abs(
+                current_price - zone["midpoint"]
+            )
+        )
+
+        zone = active[0]
+        return {
+            **zone,
+            "direction": direction,
+            "price_inside_zone": (
+                zone["low"] <= current_price <= zone["high"]
+            ),
+            "distance_pct": (
+                abs(current_price - zone["midpoint"])
+                / current_price * 100
+                if current_price > 0 else None
+            ),
+        }
+
+    bullish_fvg = nearest_active_fvg(
+        fvg_data["bullish"], "Bullish"
+    )
+    bearish_fvg = nearest_active_fvg(
+        fvg_data["bearish"], "Bearish"
+    )
+
+    result["fvg"] = {
+        "bullish": bullish_fvg,
+        "bearish": bearish_fvg,
+    }
+
     recent = candles[-25:-1]
 
     if len(recent) < 10:
@@ -2151,6 +2321,22 @@ def detect_entry_setup(candles, technical):
             or sweep
             or bos
         )
+
+        bullish_zone = bullish_fvg
+
+        fvg_retest = bool(
+            bullish_zone
+            and not bullish_zone["fully_filled"]
+            and (
+                bullish_zone["price_inside_zone"]
+                or (
+                    last["low"] <= bullish_zone["high"]
+                    and last["high"] >= bullish_zone["low"]
+                )
+            )
+        )
+
+        result["fvg_retest"] = fvg_retest
 
         result["direction"] = "Bullish"
         result["pullback"] = pullback
