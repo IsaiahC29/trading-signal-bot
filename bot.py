@@ -1534,36 +1534,125 @@ def get_bydfi_perpetual_universe():
 
 
 
+
 def get_market_candles(coin, timeframe):
-    if not BINANCE_MARKET_DISCOVERY_OK:
-        print("BINANCE FUTURES CANDLES UNAVAILABLE:", coin, timeframe)
+    coin = coin.upper()
+
+    # Fail closed: only analyze coins confirmed as BYDFi
+    # USDT-margined perpetual contracts.
+    if not BYDFI_MARKET_DISCOVERY_OK:
+        print("BYDFI FUTURES UNAVAILABLE — CANDLES BLOCKED:", coin)
         return [], None
 
-    symbol = BINANCE_PERPETUAL_MARKETS.get(coin.upper())
-    if not symbol:
-        print("NO ACTIVE BINANCE USDT PERPETUAL:", coin)
+    if coin not in BYDFI_PERPETUAL_MARKETS:
+        print("NOT A CONFIRMED BYDFI USDT PERPETUAL:", coin)
         return [], None
 
-    interval = TIMEFRAMES.get(timeframe, {}).get("binance")
-    if not interval:
+    timeframe_map = {
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1H",
+        "1H": "1H",
+        "4h": "4H",
+        "4H": "4H",
+        "1d": "1D",
+        "1D": "1D",
+    }
+
+    bar = timeframe_map.get(str(timeframe))
+    if not bar:
+        configured = TIMEFRAMES.get(timeframe, {})
+        configured_interval = configured.get("binance")
+        bar = timeframe_map.get(str(configured_interval))
+
+    if not bar:
+        print("UNSUPPORTED OKX TIMEFRAME:", timeframe)
         return [], None
 
-    candles = get_binance_futures_candles(
-        symbol,
-        interval,
-        limit=200,
-    )
+    # OKX is the candle-data source, not the execution venue.
+    # The instrument must be a USDT-settled perpetual swap.
+    symbol = f"{coin}-USDT-SWAP"
 
-    if len(candles) >= 60:
-        return candles, "Binance USDT Perpetuals"
+    try:
+        response = requests.get(
+            OKX_MARKET_CANDLES_URL,
+            params={
+                "instId": symbol,
+                "bar": bar,
+                "limit": "200",
+            },
+            timeout=REQUEST_TIMEOUT,
+            headers={
+                "User-Agent": "SideShiftAI/4.0",
+            },
+        )
 
-    print(
-        "BINANCE FUTURES INSUFFICIENT CANDLES:",
-        coin,
-        timeframe,
-        len(candles),
-    )
-    return [], None
+        if response.status_code != 200:
+            print(
+                "OKX CANDLES HTTP ERROR:",
+                response.status_code,
+                symbol,
+                bar,
+            )
+            return [], None
+
+        payload = response.json()
+
+        if payload.get("code") != "0":
+            print(
+                "OKX CANDLES API ERROR:",
+                payload.get("code"),
+                payload.get("msg"),
+                symbol,
+            )
+            return [], None
+
+        rows = payload.get("data", [])
+        candles = []
+
+        for row in rows:
+            if len(row) < 6:
+                continue
+
+            candles.append({
+                "timestamp": int(row[0]),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+                "volume": float(row[5]),
+            })
+
+        # OKX returns candles newest-first; indicators need
+        # oldest-first chronological order.
+        candles.sort(key=lambda candle: candle["timestamp"])
+
+        if len(candles) < 60:
+            print(
+                "OKX INSUFFICIENT PERPETUAL CANDLES:",
+                coin,
+                bar,
+                len(candles),
+            )
+            return [], None
+
+        print(
+            "OKX PERPETUAL CANDLES READY:",
+            symbol,
+            bar,
+            len(candles),
+        )
+        return candles, "OKX USDT Perpetual Candles"
+
+    except Exception as exc:
+        print(
+            "OKX FUTURES CANDLE ERROR:",
+            symbol,
+            repr(exc),
+        )
+        return [], None
+
 
 # ============================================================
 # COINMARKETCAP FALLBACK
@@ -4537,15 +4626,16 @@ def scan_market():
         )
 
     else:
-
         print(
-            "FUTURES DISCOVERY FAILED — "
-            "USING EXISTING COIN LIST"
+            "BYDFI FUTURES DISCOVERY FAILED — "
+            "SCANNING PAUSED"
         )
 
-        scan_coins = list(
-            COINS.keys()
-        )
+        return {
+            "btc_regime": "UNKNOWN",
+            "analyses": [],
+            "signals": [],
+        }
 
     for coin in scan_coins:
 
@@ -6630,7 +6720,7 @@ def start_background_engines():
 # START
 # ============================================================
 init_reporting_db()
-inspect_binance_perpetuals()
+inspect_bydfi_contracts()
 start_background_engines()
 
 if __name__ == "__main__":
