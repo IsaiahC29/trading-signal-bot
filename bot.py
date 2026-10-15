@@ -345,6 +345,7 @@ def inspect_bydfi_contracts():
         })
         print("CCXT VERSION:", ccxt.__version__)
         print("BYDFI API URLS:", exchange.urls.get("api"))
+        exchange.verbose = True
         markets = exchange.load_markets()
 
         if not isinstance(markets, dict) or not markets:
