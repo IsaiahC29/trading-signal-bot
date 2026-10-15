@@ -326,78 +326,61 @@ OKX_MARKET_CANDLES_URL = (
 # BYDFI CONTRACT DISCOVERY — CCXT
 # ============================================================
 
-BYDFI_PERPETUAL_MARKETS = {}
-BYDFI_MARKET_DISCOVERY_OK = False
-BYDFI_EXCHANGE = None
+
+BINANCE_PERPETUAL_MARKETS = {}
+BINANCE_MARKET_DISCOVERY_OK = False
 
 
-def inspect_bydfi_contracts():
-    global BYDFI_PERPETUAL_MARKETS
-    global BYDFI_MARKET_DISCOVERY_OK
-    global BYDFI_EXCHANGE
+def inspect_binance_perpetuals():
+    global BINANCE_PERPETUAL_MARKETS
+    global BINANCE_MARKET_DISCOVERY_OK
 
     try:
-        exchange = ccxt.bydfi({
-            "enableRateLimit": True,
-            "timeout": int(REQUEST_TIMEOUT * 1000),
-        })
-        
-        print("CCXT VERSION:", ccxt.__version__)
-        print("BYDFI API URLS:", exchange.urls.get("api"))
+        response = requests.get(
+            BINANCE_FUTURES_EXCHANGE_INFO_URL,
+            timeout=REQUEST_TIMEOUT,
+            headers={"User-Agent": "SideShiftAI/4.0"},
+        )
+        print("BINANCE FUTURES EXCHANGE INFO HTTP:", response.status_code)
+        response.raise_for_status()
+        payload = response.json()
 
-        try:
-            response = requests.get(
-                "https://api.bydfi.com/api/v1/fapi/market/ticker/24hr",
-                params={"symbol": "BTC-USDT"},
-                timeout=10,
-            )
-            print("BYDFI DIRECT TICKER STATUS:", response.status_code)
-            print("BYDFI DIRECT TICKER BODY:", response.text[:500])
-        except Exception as test_exc:
-            print("BYDFI DIRECT TICKER ERROR:", repr(test_exc))
+        if not isinstance(payload, dict) or not isinstance(
+            payload.get("symbols"), list
+        ):
+            raise RuntimeError("Invalid Binance Futures response")
 
-        markets = exchange.load_markets()
         perpetuals = {}
 
-        for symbol, market in markets.items():
-            if not market.get("swap"):
+        for market in payload["symbols"]:
+            if market.get("contractType") != "PERPETUAL":
                 continue
-            if market.get("spot"):
+            if market.get("status") != "TRADING":
                 continue
-            if market.get("expiry") is not None:
-                continue
-            if market.get("active") is False:
-                continue
-            if market.get("quote") != "USDT":
-                continue
-            if market.get("settle") not in (None, "USDT"):
+            if market.get("quoteAsset") != "USDT":
                 continue
 
-            base = market.get("base")
-            if base:
-                perpetuals[base.upper()] = {
-                    "symbol": symbol,
-                    "market": market,
-                }
+            symbol = market.get("symbol", "")
+            base = market.get("baseAsset")
+
+            if base and symbol.endswith("USDT"):
+                perpetuals[base.upper()] = symbol
 
         if not perpetuals:
-            raise RuntimeError("No active BYDFi USDT perpetuals found")
+            raise RuntimeError("No active USDT perpetuals found")
 
-        BYDFI_EXCHANGE = exchange
-        BYDFI_PERPETUAL_MARKETS = perpetuals
-        BYDFI_MARKET_DISCOVERY_OK = True
+        BINANCE_PERPETUAL_MARKETS = perpetuals
+        BINANCE_MARKET_DISCOVERY_OK = True
 
-        print("BYDFI PERPETUAL MARKETS READY:", len(perpetuals))
-        print("BYDFI PERPETUAL SAMPLE:", list(perpetuals)[:10])
+        print("BINANCE USDT PERPETUALS READY:", len(perpetuals))
+        print("PERPETUAL SAMPLE:", list(perpetuals.items())[:10])
         return True
 
     except Exception as exc:
-        BYDFI_EXCHANGE = None
-        BYDFI_PERPETUAL_MARKETS = {}
-        BYDFI_MARKET_DISCOVERY_OK = False
-        print("BYDFI MARKET DATA ERROR:", repr(exc))
+        BINANCE_PERPETUAL_MARKETS = {}
+        BINANCE_MARKET_DISCOVERY_OK = False
+        print("BINANCE FUTURES DISCOVERY ERROR:", repr(exc))
         return False
-
 
 # ============================================================
 # COINGLASS V4
@@ -1522,66 +1505,50 @@ def get_binance_futures_candles(
 
 
 
+
 def get_bydfi_perpetual_universe():
-    if not BYDFI_MARKET_DISCOVERY_OK:
-        print("BYDFI UNAVAILABLE — SCANNING PAUSED")
+    # Keep the existing scanner interface, using Binance USDT perpetuals.
+    if not BINANCE_MARKET_DISCOVERY_OK:
+        print("BINANCE FUTURES UNAVAILABLE — SCANNING PAUSED")
         return {}
 
     return {
-        base: info["symbol"]
-        for base, info in BYDFI_PERPETUAL_MARKETS.items()
+        base: BINANCE_PERPETUAL_MARKETS[base]
+        for base in COINS
+        if base in BINANCE_PERPETUAL_MARKETS
     }
 
 
 def get_market_candles(coin, timeframe):
-    if not BYDFI_MARKET_DISCOVERY_OK or BYDFI_EXCHANGE is None:
-        print("BYDFI CANDLES UNAVAILABLE:", coin, timeframe)
+    if not BINANCE_MARKET_DISCOVERY_OK:
+        print("BINANCE FUTURES CANDLES UNAVAILABLE:", coin, timeframe)
         return [], None
 
-    info = BYDFI_PERPETUAL_MARKETS.get(coin.upper())
-    if not info:
+    symbol = BINANCE_PERPETUAL_MARKETS.get(coin.upper())
+    if not symbol:
+        print("NO ACTIVE BINANCE USDT PERPETUAL:", coin)
         return [], None
 
-    timeframe_map = {
-        "5m": "5m",
-        "15m": "15m",
-        "30m": "30m",
-        "1h": "1h",
-        "4h": "4h",
-        "1D": "1d",
-    }
-
-    try:
-        rows = BYDFI_EXCHANGE.fetch_ohlcv(
-            info["symbol"],
-            timeframe=timeframe_map[timeframe],
-            limit=200,
-        )
-
-        candles = [
-            {
-                "timestamp": int(row[0]),
-                "open": float(row[1]),
-                "high": float(row[2]),
-                "low": float(row[3]),
-                "close": float(row[4]),
-                "volume": float(row[5]),
-            }
-            for row in (rows or [])
-            if len(row) >= 6
-        ]
-
-        candles.sort(key=lambda item: item["timestamp"])
-
-        if len(candles) >= 60:
-            return candles, "BYDFi Perpetuals"
-
-        print("BYDFI INSUFFICIENT CANDLES:", coin, timeframe, len(candles))
+    interval = TIMEFRAMES.get(timeframe, {}).get("binance")
+    if not interval:
         return [], None
 
-    except Exception as exc:
-        print("BYDFI CANDLE ERROR:", coin, timeframe, repr(exc))
-        return [], None
+    candles = get_binance_futures_candles(
+        symbol,
+        interval,
+        limit=200,
+    )
+
+    if len(candles) >= 60:
+        return candles, "Binance USDT Perpetuals"
+
+    print(
+        "BINANCE FUTURES INSUFFICIENT CANDLES:",
+        coin,
+        timeframe,
+        len(candles),
+    )
+    return [], None
 
 # ============================================================
 # COINMARKETCAP FALLBACK
@@ -6648,7 +6615,7 @@ def start_background_engines():
 # START
 # ============================================================
 init_reporting_db()
-inspect_bydfi_contracts()
+inspect_binance_perpetuals()
 start_background_engines()
 
 if __name__ == "__main__":
