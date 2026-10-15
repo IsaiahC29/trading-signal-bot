@@ -345,6 +345,39 @@ def inspect_bydfi_contracts():
         })
         print("CCXT VERSION:", ccxt.__version__)
         print("BYDFI API URLS:", exchange.urls.get("api"))
+        
+        # Read-only tests of BYDFi public API routes
+        bydfi_base = "https://api.bydfi.com/api"
+        diagnostic_routes = [
+            "/v1/public/api_limits",
+            "/v1/public/api_limit",
+            "/v1/fapi/market/exchange_info",
+            "/v1/fapi/market/ticker/price?symbol=BTC-USDT",
+            "/v1/fapi/market/ticker/24hr?symbol=BTC-USDT",
+        ]
+
+        for route in diagnostic_routes:
+            try:
+                response = requests.get(
+                    bydfi_base + route,
+                    timeout=REQUEST_TIMEOUT,
+                    headers={"Accept": "application/json"},
+                )
+                print(
+                    "BYDFI ROUTE TEST:",
+                    route,
+                    "HTTP",
+                    response.status_code,
+                    "BODY",
+                    response.text[:250],
+                )
+            except Exception as route_exc:
+                print(
+                    "BYDFI ROUTE TEST ERROR:",
+                    route,
+                    repr(route_exc),
+                )
+
         exchange.verbose = True
         markets = exchange.load_markets()
 
