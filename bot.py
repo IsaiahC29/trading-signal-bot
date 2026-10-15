@@ -1533,27 +1533,6 @@ def get_binance_futures_candles(
         return []
 
 
-
-
-
-def get_bydfi_perpetual_universe():
-    if not BYDFI_MARKET_DISCOVERY_OK:
-        print("BYDFI FUTURES UNAVAILABLE — SCANNING PAUSED")
-        return {}
-
-    if not BYDFI_PERPETUAL_MARKETS:
-        print("BYDFI FUTURES UNIVERSE EMPTY — SCANNING PAUSED")
-        return {}
-
-    return {
-        base: symbol
-        for base, symbol in BYDFI_PERPETUAL_MARKETS.items()
-        if base in COINS
-    }
-
-
-
-
 def get_market_candles(coin, timeframe):
     coin = coin.upper()
 
