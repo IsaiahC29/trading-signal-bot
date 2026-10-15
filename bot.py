@@ -345,6 +345,17 @@ def inspect_bydfi_contracts():
         print("CCXT VERSION:", ccxt.__version__)
         print("BYDFI API URLS:", exchange.urls.get("api"))
 
+        try:
+            response = requests.get(
+                "https://api.bydfi.com/api/v1/fapi/market/ticker/24hr",
+                params={"symbol": "BTC-USDT"},
+                timeout=10,
+            )
+            print("BYDFI DIRECT TICKER STATUS:", response.status_code)
+            print("BYDFI DIRECT TICKER BODY:", response.text[:500])
+        except Exception as test_exc:
+            print("BYDFI DIRECT TICKER ERROR:", repr(test_exc))
+
         markets = exchange.load_markets()
         perpetuals = {}
 
