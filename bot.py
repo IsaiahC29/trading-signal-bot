@@ -2399,6 +2399,22 @@ def detect_entry_setup(candles, technical):
             == "Bearish"
         )
 
+        bearish_zone = bearish_fvg
+
+        fvg_retest = bool(
+            bearish_zone
+            and not bearish_zone["fully_filled"]
+            and (
+                bearish_zone["price_inside_zone"]
+                or (
+                    last["low"] <= bearish_zone["high"]
+                    and last["high"] >= bearish_zone["low"]
+                )
+            )
+        )
+
+        result["fvg_retest"] = fvg_retest
+
         trigger = (
             rejection
             or sweep
