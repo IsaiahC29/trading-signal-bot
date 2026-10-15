@@ -342,6 +342,7 @@ OKX_PERPETUAL_MARKETS = {}
 OKX_MARKET_DISCOVERY_OK = False
 
 
+
 def inspect_okx_perpetuals():
     global OKX_PERPETUAL_MARKETS
     global OKX_MARKET_DISCOVERY_OK
@@ -364,25 +365,40 @@ def inspect_okx_perpetuals():
                 f"{payload.get('code')}: {payload.get('msg')}"
             )
 
+        instruments = payload.get("data", [])
+        print("OKX RAW SWAP INSTRUMENT COUNT:", len(instruments))
+
+        if instruments:
+            print("OKX RAW INSTRUMENT SAMPLE:", instruments[0])
+
         perpetuals = {}
 
-        for instrument in payload.get("data", []):
-            if instrument.get("instType") != "SWAP":
+        for instrument in instruments:
+            inst_id = str(instrument.get("instId") or "")
+            if not inst_id.endswith("-USDT-SWAP"):
                 continue
-            if instrument.get("settleCcy") != "USDT":
+
+            # A USDT-settled swap is the required contract type.
+            settle = str(instrument.get("settleCcy") or "").upper()
+            if settle and settle != "USDT":
                 continue
+
             if instrument.get("state") != "live":
                 continue
 
-            base = (instrument.get("baseCcy") or "").upper()
-            inst_id = instrument.get("instId")
+            base = str(instrument.get("baseCcy") or "").upper()
 
-            if base in APPROVED_ASSETS and inst_id:
+            # Fallback to the exact instrument ID format.
+            if not base:
+                base = inst_id[:-len("-USDT-SWAP")]
+
+            if base in APPROVED_ASSETS:
                 perpetuals[base] = inst_id
 
         if not perpetuals:
             raise RuntimeError(
-                "No approved live OKX USDT perpetuals found"
+                "No approved live USDT perpetuals matched. "
+                "Check OKX RAW INSTRUMENT SAMPLE above."
             )
 
         OKX_PERPETUAL_MARKETS = perpetuals
