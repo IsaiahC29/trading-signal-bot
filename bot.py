@@ -2316,11 +2316,27 @@ def detect_entry_setup(candles, technical):
             == "Bullish"
         )
 
-        trigger = (
-            reclaim
-            or sweep
-            or bos
-        )
+        bullish_choch = (
+    smc.get("choch") == "Bullish"
+)
+
+bullish_fvg_confirmation = (
+    fvg_retest
+    and (
+        reclaim
+        or sweep
+        or bos
+        or bullish_choch
+    )
+)
+
+trigger = (
+    reclaim
+    or sweep
+    or bos
+    or bullish_choch
+    or bullish_fvg_confirmation
+)
 
         bullish_zone = bullish_fvg
 
