@@ -4444,23 +4444,23 @@ def build_entry_segments(
             break
 
     
-if not selected:
-    print(
-        "ENTRY SEGMENTS REJECTED:",
-        "context=", context_direction,
-        "1h_setup=", one_hour_setup,
-        "5m_bias=", five,
-        "15m_bias=", fifteen,
-        "5m_trigger=",
-        timeframe_results.get("5m", {}).get(
-            "entry_setup", {}
-        ).get("trigger"),
-        "15m_trigger=",
-        timeframe_results.get("15m", {}).get(
-            "entry_setup", {}
-        ).get("trigger"),
-    )
-    return result
+    if not selected:
+        print(
+            "ENTRY SEGMENTS REJECTED:",
+            "context=", context_direction,
+            "1h_setup=", one_hour_setup,
+            "5m_bias=", five,
+            "15m_bias=", fifteen,
+            "5m_trigger=",
+            timeframe_results.get("5m", {}).get(
+                "entry_setup", {}
+            ).get("trigger"),
+            "15m_trigger=",
+            timeframe_results.get("15m", {}).get(
+                "entry_setup", {}
+            ).get("trigger"),
+        )
+        return result
 
 
     (
