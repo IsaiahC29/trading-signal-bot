@@ -2336,14 +2336,12 @@ def detect_entry_setup(candles, technical):
             smc.get("choch") == "Bullish"
         )
 
+        
+        # Confirm a bullish reaction inside the FVG.
         bullish_fvg_confirmation = (
             fvg_retest
-            and (
-                reclaim
-                or sweep
-                or bos
-                or bullish_choch
-            )
+            and last_close > last["open"]
+            and last_close >= bullish_zone["midpoint"]
         )
 
         trigger = (
@@ -2352,7 +2350,8 @@ def detect_entry_setup(candles, technical):
             or bos
             or bullish_choch
             or bullish_fvg_confirmation
-        )   
+        )
+
         result["direction"] = "Bullish"
         result["pullback"] = pullback
         result["liquidity_sweep"] = (
@@ -2430,11 +2429,18 @@ def detect_entry_setup(candles, technical):
 
         result["fvg_retest"] = fvg_retest
 
-        trigger = (
-            rejection
-            or sweep
-            or bos
-        )
+            bearish_fvg_confirmation = (
+                fvg_retest
+                and last_close < last["open"]
+                and last_close <= bearish_zone["midpoint"]
+            )
+
+            trigger = (
+                rejection
+                or sweep
+                or bos
+                or bearish_fvg_confirmation
+            )
 
         result["direction"] = "Bearish"
         result["pullback"] = pullback
