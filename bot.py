@@ -2316,7 +2316,7 @@ def detect_entry_setup(candles, technical):
             == "Bullish"
         )
 
-         bullish_zone = bullish_fvg
+                 bullish_zone = bullish_fvg
 
         fvg_retest = bool(
             bullish_zone
@@ -2329,6 +2329,8 @@ def detect_entry_setup(candles, technical):
                 )
             )
         )
+
+        result["fvg_retest"] = fvg_retest
 
         bullish_choch = (
             smc.get("choch") == "Bullish"
@@ -2350,11 +2352,7 @@ def detect_entry_setup(candles, technical):
             or bos
             or bullish_choch
             or bullish_fvg_confirmation
-        )
-
-        result["fvg_retest"] = fvg_retest
-        result["fvg_retest"] = fvg_retest
-
+        )   
         result["direction"] = "Bullish"
         result["pullback"] = pullback
         result["liquidity_sweep"] = (
