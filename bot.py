@@ -2316,7 +2316,7 @@ def detect_entry_setup(candles, technical):
             == "Bullish"
         )
 
-                 bullish_zone = bullish_fvg
+        bullish_zone = bullish_fvg
 
         fvg_retest = bool(
             bullish_zone
