@@ -2330,13 +2330,13 @@ bullish_fvg_confirmation = (
     )
 )
 
-trigger = (
-    reclaim
-    or sweep
-    or bos
-    or bullish_choch
-    or bullish_fvg_confirmation
-)
+        trigger = (
+            reclaim
+            or sweep
+            or bos
+            or bullish_choch
+            or bullish_fvg_confirmation
+        )
 
         bullish_zone = bullish_fvg
 
