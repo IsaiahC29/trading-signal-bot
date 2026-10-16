@@ -4213,9 +4213,31 @@ def scan_coin(
             timeframe_results
         )
     )
+    
+    # Normalize directional labels for signal qualification
+    signal_label = overall_label
+    if overall_label == "Bullish Lean":
+        signal_label = "Bullish"
+    elif overall_label == "Bearish Lean":
+        signal_label = "Bearish"
+
+    print(
+        "SIGNAL QUALIFICATION CHECK:",
+        coin,
+        "overall=", overall_label,
+        "signal_label=", signal_label,
+        "score=", round(average_score, 2),
+        "strength=", round(confidence, 1),
+        "valid_timeframes=", len(valid_results),
+        "structure=", structure,
+        "entry_valid=", entry_segments.get("valid"),
+        "entry_direction=", entry_segments.get("direction"),
+        "entry_tf=", entry_segments.get("entry_timeframe"),
+    )
+
     signal = build_signal(
         coin=coin,
-        label=overall_label,
+        label=signal_label,
         score=average_score,
         confidence=confidence,
         agreement=agreement,
