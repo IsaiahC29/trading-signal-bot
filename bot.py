@@ -2429,7 +2429,7 @@ def detect_entry_setup(candles, technical):
 
         result["fvg_retest"] = fvg_retest
 
-            bearish_fvg_confirmation = (
+        bearish_fvg_confirmation = (
                 fvg_retest
                 and last_close < last["open"]
                 and last_close <= bearish_zone["midpoint"]
