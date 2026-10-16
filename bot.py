@@ -2435,7 +2435,7 @@ def detect_entry_setup(candles, technical):
                 and last_close <= bearish_zone["midpoint"]
             )
 
-            trigger = (
+        trigger = (
                 rejection
                 or sweep
                 or bos
