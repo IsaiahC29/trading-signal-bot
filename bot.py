@@ -5728,28 +5728,31 @@ def monitor_active_trades():
                     continue
 
                 
-                # Close at the active stop and report the
-                # highest target reached as the outcome.
+                
+                # A stop hit determines the final outcome.
+                # Earlier target hits are recorded separately.
                 if stop_hit:
+                    final_status = "SL"
+                    final_exit = effective_stop
+
                     if highest_target > 0:
-                        final_status = f"TP{highest_target}"
-                        final_exit = effective_stop
                         message = (
-                            "<b>📌 TRADE CLOSED</b>\n\n"
+                            "<b>🛑 TRADE CLOSED — STOP LOSS HIT</b>\n\n"
                             + prefix
-                            + f"<b>Final outcome:</b> {final_status}\n"
+                            + f"<b>Highest target reached:</b> TP{highest_target}\n"
+                            + "<b>Final outcome:</b> SL\n"
                             + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
-                            + "<i>Outcome reflects the highest target reached; P/L uses the modeled exit.</i>"
+                            + "<i>The stop-loss determined the final outcome. "
+                            "P/L is calculated from the modeled exit.</i>"
                         )
                     else:
-                        final_status = "SL"
-                        final_exit = effective_stop
                         message = (
                             "<b>🛑 STOP LOSS HIT</b>\n\n"
                             + prefix
                             + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
                             + "<i>Trade monitoring closed.</i>"
                         )
+
 
 
                     saved = update_signal_outcome(
