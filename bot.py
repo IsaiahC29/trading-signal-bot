@@ -5615,61 +5615,63 @@ def monitor_active_trades():
                     print("MONITOR SKIPPED: missing coin or record ID")
                     continue
 
-                price = get_monitor_price(coin)
-                if price is None:
+                
+                candle = get_monitor_price(coin)
+                if candle is None:
                     continue
 
-                direction = trade.get("direction")
+                price = float(candle["close"])
+                candle_high = float(candle["high"])
+                candle_low = float(candle["low"])
 
-                if direction == "LONG":
-                    tp1_hit = price >= trade["tp1"]
-                    tp2_hit = price >= trade["tp2"]
-                    tp3_hit = price >= trade["tp3"]
-                elif direction == "SHORT":
-                    tp1_hit = price <= trade["tp1"]
-                    tp2_hit = price <= trade["tp2"]
-                    tp3_hit = price <= trade["tp3"]
-                else:
+                direction = trade.get("direction")
+                if direction not in ("LONG", "SHORT"):
                     continue
 
                 audience = trade.get("audience", "unknown")
+                previous_target = int(
+                    trade.get("highest_target_hit", 0)
+                )
+
+                # Stop active before this candle began.
+                if previous_target == 0:
+                    effective_stop = trade["stop"]
+                elif previous_target == 1:
+                    effective_stop = trade["entry"]
+                else:
+                    effective_stop = trade["tp1"]
+
+                if direction == "LONG":
+                    stop_hit = candle_low <= effective_stop
+                    tp1_hit = candle_high >= trade["tp1"]
+                    tp2_hit = candle_high >= trade["tp2"]
+                    tp3_hit = candle_high >= trade["tp3"]
+                else:
+                    stop_hit = candle_high >= effective_stop
+                    tp1_hit = candle_low <= trade["tp1"]
+                    tp2_hit = candle_low <= trade["tp2"]
+                    tp3_hit = candle_low <= trade["tp3"]
+
+                highest_target = previous_target
+
+                # If the candle touched both the active stop
+                # and a target, conservatively count the stop.
+                if not stop_hit:
+                    if tp3_hit:
+                        highest_target = max(highest_target, 3)
+                    elif tp2_hit:
+                        highest_target = max(highest_target, 2)
+                    elif tp1_hit:
+                        highest_target = max(highest_target, 1)
+
+                # Subscriber-facing text only; IDs and audience
+                # remain internal to the bot.
                 prefix = (
                     f"<b>🪙 {coin}</b>\n"
                     f"📍 <b>Direction:</b> {direction}\n"
-                    f"🆔 <b>Signal ID:</b> {record_id}\n"
-                    f"👥 <b>Audience:</b> {audience.upper()}\n"
-                    f"💰 <b>Price:</b> {format_price(price)}\n\n"
+                    f"💰 <b>Current Price:</b> "
+                    f"{format_price(price)}\n\n"
                 )
-
-                previous_target = trade.get("highest_target_hit", 0)
-                highest_target = previous_target
-
-                if tp3_hit:
-                    highest_target = max(highest_target, 3)
-                elif tp2_hit:
-                    highest_target = max(highest_target, 2)
-                elif tp1_hit:
-                    highest_target = max(highest_target, 1)
-
-
-                if direction == "LONG":
-                    effective_stop = (
-                        trade["stop"]
-                        if highest_target == 0
-                        else trade["entry"]
-                        if highest_target == 1
-                        else trade["tp1"]
-                    )
-                    stop_hit = price <= effective_stop
-                else:
-                    effective_stop = (
-                        trade["stop"]
-                        if highest_target == 0
-                        else trade["entry"]
-                        if highest_target == 1
-                        else trade["tp1"]
-                    )
-                    stop_hit = price >= effective_stop
 
                 # Persist target progress without closing the signal.
                 if highest_target > previous_target:
