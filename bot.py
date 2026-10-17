@@ -5178,7 +5178,7 @@ def scan_market():
     results = []
 
     
- scan_coins = sorted(APPROVED_ASSETS)
+    scan_coins = sorted(APPROVED_ASSETS)
 
     original_symbols = {}
     added_coins = []
