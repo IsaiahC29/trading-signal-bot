@@ -59,6 +59,7 @@ app = Flask(__name__)
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
+
 def init_reporting_db():
     if not DATABASE_URL:
         print("REPORTING DB ERROR: DATABASE_URL is not configured.")
@@ -84,9 +85,32 @@ def init_reporting_db():
                         exit_price DOUBLE PRECISION,
                         return_pct DOUBLE PRECISION,
                         outcome_updated_at TIMESTAMPTZ,
+                        highest_target_hit INTEGER NOT NULL DEFAULT 0,
+                        pnl_usd DOUBLE PRECISION,
+                        position_size_usd DOUBLE PRECISION,
+                        fees_usd DOUBLE PRECISION,
                         UNIQUE (audience, id)
                     )
                 """)
+
+                cur.execute("""
+                    ALTER TABLE signal_records
+                    ADD COLUMN IF NOT EXISTS highest_target_hit INTEGER
+                    NOT NULL DEFAULT 0
+                """)
+                cur.execute("""
+                    ALTER TABLE signal_records
+                    ADD COLUMN IF NOT EXISTS pnl_usd DOUBLE PRECISION
+                """)
+                cur.execute("""
+                    ALTER TABLE signal_records
+                    ADD COLUMN IF NOT EXISTS position_size_usd DOUBLE PRECISION
+                """)
+                cur.execute("""
+                    ALTER TABLE signal_records
+                    ADD COLUMN IF NOT EXISTS fees_usd DOUBLE PRECISION
+                """)
+
             conn.commit()
 
         print("REPORTING DB: signal_records table is ready.")
@@ -106,6 +130,8 @@ def save_signal_record(
     tp1,
     tp2,
     tp3,
+    position_size_usd=None,
+    fees_usd=None,
 ):
     if not DATABASE_URL:
         print("REPORTING DB ERROR: cannot save signal without DATABASE_URL.")
@@ -123,9 +149,13 @@ def save_signal_record(
                         audience, coin, direction,
                         entry_price, stop_price,
                         tp1_price, tp2_price, tp3_price,
-                        report_date, status
+                        report_date, status,
+                        position_size_usd, fees_usd
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'OPEN')
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, 'OPEN', %s, %s
+                    )
                     RETURNING id
                 """, (
                     audience,
@@ -137,8 +167,11 @@ def save_signal_record(
                     float(tp2),
                     float(tp3),
                     report_date,
+                    float(position_size_usd) if position_size_usd is not None else None,
+                    float(fees_usd) if fees_usd is not None else None,
                 ))
                 record_id = cur.fetchone()[0]
+
             conn.commit()
 
         print(
@@ -153,7 +186,6 @@ def save_signal_record(
     except Exception as exc:
         print("REPORTING DB SAVE ERROR:", repr(exc))
         return False
-
 
 # ============================================================
 # ENVIRONMENT
