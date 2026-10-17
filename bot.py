@@ -765,6 +765,54 @@ def inspect_okx_perpetuals():
         return False
 
 
+def inspect_gateio_missing_perpetuals():
+    """Compare approved assets missing on OKX with Gate.io USDT perpetuals."""
+    try:
+        response = requests.get(
+            "https://api.gateio.ws/api/v4/futures/usdt/contracts",
+            timeout=REQUEST_TIMEOUT,
+            headers={"Accept": "application/json"},
+        )
+        print("GATE.IO CONTRACT DISCOVERY HTTP:", response.status_code)
+        response.raise_for_status()
+        contracts = response.json()
+
+        if not isinstance(contracts, list):
+            raise RuntimeError("Unexpected Gate.io contracts response")
+
+        gateio_assets = set()
+
+        for contract in contracts:
+            if not isinstance(contract, dict):
+                continue
+            if contract.get("in_delisting", False):
+                continue
+
+            name = str(contract.get("name", "")).upper()
+            if name.endswith("_USDT"):
+                base = name[:-5]
+                if base:
+                    gateio_assets.add(base)
+
+        missing_from_okx = (
+            set(APPROVED_ASSETS) - set(OKX_PERPETUAL_MARKETS)
+        )
+        covered = sorted(missing_from_okx & gateio_assets)
+
+        print("GATE.IO LIVE USDT PERPETUAL COUNT:", len(gateio_assets))
+        print("OKX-MISSING ASSETS FOUND ON GATE.IO:", len(covered))
+        print("GATE.IO ADDITIONAL ASSET SAMPLE:", covered[:100])
+        print(
+            "OKX-MISSING ASSETS ALSO NOT FOUND ON GATE.IO:",
+            sorted(missing_from_okx - gateio_assets),
+        )
+
+        return covered
+
+    except Exception as exc:
+        print("GATE.IO CONTRACT DISCOVERY ERROR:", repr(exc))
+        return []
+
 def get_okx_perpetual_universe():
     if not OKX_MARKET_DISCOVERY_OK:
         print("OKX FUTURES UNAVAILABLE — SCANNING PAUSED")
