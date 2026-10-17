@@ -617,48 +617,57 @@ OKX_MARKET_CANDLES_URL = (
 # that each one is a live USDT-settled perpetual swap.
 
 APPROVED_ASSETS = {
-    # Large/liquid crypto
+    # Core crypto contracts
     "BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ADA",
-    "AVAX", "LINK", "LTC", "DOT", "SUI", "BCH", "ICP",
-    "NEAR", "APT", "ARB", "OP", "INJ", "FIL", "ATOM",
-    "UNI", "AAVE", "ETC", "ALGO", "XLM", "HBAR", "SEI",
-    "TIA", "RENDER", "WLD", "PYTH", "JUP", "AR", "XTZ",
+    "AVAX", "LINK", "LTC", "WLD", "NEAR", "APT", "ARB",
+    "OP", "INJ", "FIL", "ATOM", "DOT", "UNI", "AAVE",
+    "ETC", "ALGO", "XLM", "HBAR", "SEI", "TIA", "PEPE",
+    "PENGU", "WIF", "BONK", "FLOKI", "SHIB", "SUI",
+    "BCH", "ICP", "RENDER", "PYTH", "JUP", "AR", "XTZ",
     "VET", "GRT", "POL", "TRX", "EGLD", "LDO", "XDC",
     "JTO", "ORCA", "JASMY", "IOST", "VIRTUAL", "GALA",
-    "VET", "RUNE", "IOTA", "IMX", "CHZ", "ARKM", "USTC",
-    "ENJ", "AXS", "SAGA", "CFX", "LUNA2", "SYN", "KSM",
-    "CVX", "CRO", "ZRX", "MNT", "GMX", "SKL", "SPELL",
-    "BSV", "AEVO", "1INCH", "PENDLE", "COMP", "SYRUP",
-    "DYDX", "THETA", "FLR", "BOME", "APE", "ONE", "BLUR",
-    "BAT", "HYPE", "TAO", "GRASS", "ENA", "CRV", "AERO",
-    "ONDO", "STX", "SAND", "AXL", "ICNT",
+    "RUNE", "IOTA", "IMX", "CHZ", "ARKM", "USTC", "ENJ",
+    "AXS", "SAGA", "CFX", "LUNA2", "SYN", "KSM", "CVX",
+    "CRO", "ZRX", "MNT", "GMX", "SKL", "SPELL", "BSV",
+    "AEVO", "1INCH", "PENDLE", "COMP", "SYRUP", "DYDX",
+    "THETA", "FLR", "BOME", "APE", "ONE", "BLUR", "BAT",
+    "HYPE", "TAO", "GRASS", "ENA", "CRV", "AERO", "ONDO",
+    "STX", "SAND", "AXL", "ICNT",
 
-    # Meme and leveraged-denomination contracts
-    "PEPE", "PENGU", "WIF", "BONK", "FLOKI", "SHIB",
+    # Leveraged-denomination and meme contracts
     "1000SHIB", "1000BONK", "1000LUNC", "1000PEPE",
-    "1000SATS", "1000RATS", "BOME", "TOSHI", "TURBO",
-    "MELANIA", "CLANKER", "JELLYJELLY", "FIGHT", "BAN",
-    "PUMP", "SIREN", "SKYAI", "GIGGLE", "TOSHI",
+    "1000SATS", "1000RATS", "TOSHI", "TURBO", "MELANIA",
+    "CLANKER", "JELLYJELLY", "FIGHT", "BAN", "PUMP",
+    "SIREN", "SKYAI", "GIGGLE", "FARTCOIN",
 
-    # Additional contracts from screenshots
+    # Additional screenshot contracts
     "IBM", "ESPORTS", "PIPPIN", "BSB", "DEXE", "RAVE",
     "SLP", "ME", "TNSR", "GUN", "ACH", "DRIFT", "HIVE",
     "DYM", "RESOLV", "PRL", "TAC", "MERL", "DOOD",
-    "SAHARA", "DRAM", "ALLO", "EDGE", "PIEVERSE",
+    "SAHARA", "TSM", "DRAM", "ALLO", "EDGE", "PIEVERSE",
     "NAORIS", "CGPT", "HYPER", "SONIC", "MOCA", "XAI",
     "HOME", "AWE", "COPPER", "OPG", "ORDI", "B",
     "SIGN", "KAT", "OFC", "BR", "CROSS", "AIA", "MYX",
     "ERA", "OG", "BREV", "HEI", "POWR", "ALICE", "SPACE",
     "COAI", "BULLA", "PHA", "LYN", "HUMA", "ASTER",
-    "AVNT", "PLTR", "GOOGL", "INTC", "MMT", "BIO",
-    "BZ", "ID", "BILL", "PIXEL", "BLESS", "ANIME",
-    "NFLX", "HOOD", "MSFT", "MRVL", "1000LUNC", "GENIUS",
-    "UB", "MET", "DELL", "GPS", "RECALL", "CLO", "SPX",
-    "STO", "EDEN", "ASR", "XAUT", "PAXG", "XAU", "XAG",
+    "AVNT", "PLTR", "GOOGL", "INTC", "MMT", "BIO", "BZ",
+    "ID", "BILL", "PIXEL", "BLESS", "ANIME", "NFLX",
+    "HOOD", "MSFT", "MRVL", "GENIUS", "UB", "MET",
+    "DELL", "GPS", "RECALL", "CLO", "SPX", "STO",
+    "EDEN", "ASR", "XAUT", "PAXG", "XAU", "XAG",
     "TSLA", "NVDA", "AMZN", "QCOM", "AVGO", "MARA",
-    "XOM", "SHOP", "GME", "ON", "HYUNDAI", "UNITREE",
-    "KR200", "LYTE", "SPCH", "BICO", "SKY", "WLFI",
-    "MON", "KERNEL", "TAG", "AST", "JELLYJELLY"
+    "XOM", "SHOP", "ON", "HYUNDAI", "UNITREE", "KR200",
+    "LYTE", "SPCH", "BICO", "SKY", "WLFI", "MON",
+    "KERNEL", "TAG", "AST", "TSM", "QCOM",
+
+    # Additional symbols recorded from later screenshots
+    "JUP", "XPD", "QQQ", "AMD", "ORCL", "CBRS", "APR",
+    "BERA", "BEAT", "INIT", "TRUMP", "XPL", "CC",
+    "VELVET", "FET", "BASE", "XPIN", "SUS", "MOVR",
+    "EIGEN", "CHIP", "SOXL", "SNDK", "JCT", "ZBCN",
+    "WIFU", "VYVY", "KAS", "RIVER", "RSR", "LAB",
+    "ZAMA", "NMR", "SPCX", "MEGA", "ARIA", "MU",
+    "USELESS", "BABY", "EDU", "CL", "META", "MSTR"
 }
 
 # BYDFi perpetual contracts explicitly approved for signals.
