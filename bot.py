@@ -5622,12 +5622,10 @@ def monitor_active_trades():
                 direction = trade.get("direction")
 
                 if direction == "LONG":
-                    stop_hit = price <= trade["stop"]
                     tp1_hit = price >= trade["tp1"]
                     tp2_hit = price >= trade["tp2"]
                     tp3_hit = price >= trade["tp3"]
                 elif direction == "SHORT":
-                    stop_hit = price >= trade["stop"]
                     tp1_hit = price <= trade["tp1"]
                     tp2_hit = price <= trade["tp2"]
                     tp3_hit = price <= trade["tp3"]
