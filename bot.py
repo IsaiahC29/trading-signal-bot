@@ -1960,7 +1960,22 @@ def get_market_candles(coin, timeframe):
 
             except Exception as exc:
                 print("OKX CANDLE FALLBACK:", coin, repr(exc))
-
+                
+    # Only allow Binance fallback for assets verified in the OKX
+    # live USDT perpetual universe.
+    if coin not in OKX_PERPETUAL_MARKETS:
+        print(
+            "SKIPPING BINANCE FUTURES: NO VERIFIED OKX PERPETUAL",
+            coin,
+            timeframe,
+        )
+        print(
+            "NO USABLE PERPETUAL CANDLE SOURCE:",
+            coin,
+            timeframe,
+        )
+        return [], None
+        
     # Source 2: Binance USD-M perpetual candles.
     # Binance must independently have this exact futures contract.
     binance_symbol = coin + "USDT"
