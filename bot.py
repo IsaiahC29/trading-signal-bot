@@ -5484,16 +5484,16 @@ def register_active_trade(analysis, record_id, audience):
         "direction=", direction,
     )
 
+
 def get_monitor_price(coin):
     try:
         candles, provider = get_market_candles(coin, "5m")
         if candles:
-            return candles[-1].get("close")
+            return candles[-1]
     except Exception as exc:
         print("MONITOR PRICE ERROR:", coin, repr(exc))
 
     return None
-
 
 def send_trade_update(trade, message):
     sent = False
