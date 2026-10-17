@@ -5743,25 +5743,30 @@ def monitor_active_trades():
                         ACTIVE_TRADES.pop(trade_id, None)
                     continue
 
-                # Close at SL only if no target was reached.
+                
+                # Close at the active stop and report the
+                # highest target reached as the outcome.
                 if stop_hit:
                     if highest_target > 0:
                         final_status = f"TP{highest_target}"
-                        final_exit = trade[f"tp{highest_target}"]
+                        final_exit = effective_stop
                         message = (
                             "<b>📌 TRADE CLOSED</b>\n\n"
                             + prefix
                             + f"<b>Final outcome:</b> {final_status}\n"
-                            + "<i>Recorded at the highest target reached.</i>"
+                            + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
+                            + "<i>Outcome reflects the highest target reached; P/L uses the modeled exit.</i>"
                         )
                     else:
                         final_status = "SL"
-                        final_exit = trade["stop"]
+                        final_exit = effective_stop
                         message = (
                             "<b>🛑 STOP LOSS HIT</b>\n\n"
                             + prefix
+                            + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
                             + "<i>Trade monitoring closed.</i>"
                         )
+
 
                     saved = update_signal_outcome(
                         record_id,
