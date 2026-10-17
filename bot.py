@@ -5713,7 +5713,14 @@ def monitor_active_trades():
                         coin,
                         saved,
                     )
-
+                    
+                    if not saved:
+                        print(
+                            "TP3 CLOSE DEFERRED: database save failed",
+                            record_id,
+                        )
+                        
+                        continue
                     with ACTIVE_TRADES_LOCK:
                         ACTIVE_TRADES.pop(trade_id, None)
                     continue
