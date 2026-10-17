@@ -616,7 +616,7 @@ OKX_MARKET_CANDLES_URL = (
 # Approved assets to scan. OKX must independently verify
 # that each one is a live USDT-settled perpetual swap.
 
-APPROVED_ASSETS = {
+HARDCODED_APPROVED_ASSETS = {
     # Core crypto contracts
     "BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ADA",
     "AVAX", "LINK", "LTC", "WLD", "NEAR", "APT", "ARB",
@@ -670,13 +670,19 @@ APPROVED_ASSETS = {
     "USELESS", "BABY", "EDU", "CL", "META", "MSTR"
 }
 
-# BYDFi perpetual contracts explicitly approved for signals.
-# Configure BYDFI_PERPETUAL_ASSETS in Railway Variables.
+# Optional Railway override for the approved asset list.
+# If Railway has no list configured, preserve the hardcoded list.
 BYDFI_PERPETUAL_ASSETS = {
     asset.strip().upper()
     for asset in os.getenv("BYDFI_PERPETUAL_ASSETS", "").split(",")
     if asset.strip()
 }
+
+APPROVED_ASSETS = (
+    BYDFI_PERPETUAL_ASSETS
+    if BYDFI_PERPETUAL_ASSETS
+    else HARDCODED_APPROVED_ASSETS
+)
 
 OKX_PERPETUAL_MARKETS = {}
 OKX_MARKET_DISCOVERY_OK = False
