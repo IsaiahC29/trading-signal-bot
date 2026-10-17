@@ -5651,6 +5651,26 @@ def monitor_active_trades():
                 elif tp1_hit:
                     highest_target = max(highest_target, 1)
 
+
+                if direction == "LONG":
+                    effective_stop = (
+                        trade["stop"]
+                        if highest_target == 0
+                        else trade["entry"]
+                        if highest_target == 1
+                        else trade["tp1"]
+                    )
+                    stop_hit = price <= effective_stop
+                else:
+                    effective_stop = (
+                        trade["stop"]
+                        if highest_target == 0
+                        else trade["entry"]
+                        if highest_target == 1
+                        else trade["tp1"]
+                    )
+                    stop_hit = price >= effective_stop
+
                 # Persist target progress without closing the signal.
                 if highest_target > previous_target:
                     trade["highest_target_hit"] = highest_target
