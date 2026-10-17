@@ -3817,34 +3817,41 @@ def tv_key(
         f"{timeframe}"
     )
 
-
-def get_tv_signal(
-    symbol,
-    timeframe,
-):
-
-    item = (
-        TRADINGVIEW_CACHE.get(
-            tv_key(
-                symbol,
-                timeframe,
-            )
-        )
+def get_tv_signal(symbol, timeframe):
+    item = TRADINGVIEW_CACHE.get(
+        tv_key(symbol, timeframe)
     )
 
     if not item:
-
         return None
 
-    if (
-        time.time()
-        - item["received_at"]
-        > 7200
-    ):
+    # Maximum age depends on the alert's timeframe.
+    max_age_seconds = {
+        "5m": 15 * 60,
+        "15m": 45 * 60,
+        "30m": 90 * 60,
+        "1h": 3 * 60 * 60,
+        "4h": 12 * 60 * 60,
+        "1D": 48 * 60 * 60,
+    }
 
+    max_age = max_age_seconds.get(timeframe)
+
+    if max_age is None:
         return None
 
-    return item["data"]
+    received_at = item.get("received_at")
+
+    if not isinstance(received_at, (int, float)):
+        return None
+
+    age_seconds = time.time() - received_at
+
+    # Reject future-dated or expired alerts.
+    if age_seconds < 0 or age_seconds > max_age:
+        return None
+
+    return item.get("data")
 
 
 def apply_tradingview(
