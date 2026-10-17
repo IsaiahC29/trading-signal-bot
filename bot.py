@@ -7326,6 +7326,53 @@ def setup_telegram_webhook():
 # BACKGROUND ENGINES
 # ============================================================
 
+
+def daily_report_loop():
+    print("SideShift daily report scheduler started.")
+    eastern = ZoneInfo("America/New_York")
+
+    while True:
+        try:
+            now = datetime.now(eastern)
+            today = now.date()
+
+            if not DATABASE_URL:
+                time.sleep(60)
+                continue
+
+            with psycopg.connect(
+                DATABASE_URL,
+                connect_timeout=10,
+            ) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT sr.report_date, sr.audience
+                        FROM signal_records sr
+                        LEFT JOIN daily_report_log dr
+                          ON dr.report_date = sr.report_date
+                         AND dr.audience = sr.audience
+                        WHERE sr.report_date <= %s
+                          AND dr.report_date IS NULL
+                        ORDER BY sr.report_date, sr.audience
+                    """, (today,))
+                    pending_reports = cur.fetchall()
+
+            for report_date, audience in pending_reports:
+                # Today's report is due at 11:55 PM Eastern.
+                # Older reports are checked as soon as they become eligible.
+                if report_date == today and (
+                    now.hour < 23
+                    or (now.hour == 23 and now.minute < 55)
+                ):
+                    continue
+
+                send_daily_report(audience, report_date)
+
+        except Exception as exc:
+            print("DAILY REPORT SCHEDULER ERROR:", repr(exc))
+
+        time.sleep(60)
+
 def start_background_engines():
 
     global BACKGROUND_STARTED
@@ -7337,7 +7384,11 @@ def start_background_engines():
     BACKGROUND_STARTED = True
 
     restore_active_trades_from_db()
-    
+        report_thread = threading.Thread(
+        target=daily_report_loop,
+        daemon=True,
+    )
+    report_thread.start()
     if (
         FREE_SIGNAL_CHAT_ID
         or VIP_SIGNAL_CHAT_ID
