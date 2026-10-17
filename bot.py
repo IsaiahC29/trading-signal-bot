@@ -5229,6 +5229,7 @@ def send_trade_update(trade, message):
 
 
 
+
 def monitor_active_trades():
     print("SideShift trade monitor started.")
 
@@ -5240,6 +5241,7 @@ def monitor_active_trades():
             for trade_id, trade in trades:
                 coin = trade.get("coin")
                 record_id = trade.get("record_id")
+
                 if not coin or not record_id:
                     print("MONITOR SKIPPED: missing coin or record ID")
                     continue
@@ -5272,62 +5274,83 @@ def monitor_active_trades():
                     f"💰 <b>Price:</b> {format_price(price)}\n\n"
                 )
 
-                if stop_hit and not trade["stop_hit"]:
+                highest_target = trade.get("highest_target_hit", 0)
+
+                # Process targets first, from highest to lowest.
+                # This preserves the highest target reached.
+                if tp3_hit and highest_target < 3:
+                    highest_target = 3
+                elif tp2_hit and highest_target < 2:
+                    highest_target = 2
+                elif tp1_hit and highest_target < 1:
+                    highest_target = 1
+
+                if highest_target > trade.get("highest_target_hit", 0):
+                    trade["highest_target_hit"] = highest_target
+
+                    target_price = trade[f"tp{highest_target}"]
                     message = (
-                        "<b>🛑 STOP LOSS HIT</b>\n\n"
+                        f"<b>🎯 TP{highest_target} HIT</b>\n\n"
                         + prefix
-                        + "<i>Trade monitoring closed.</i>"
+                        + f"🎯 <b>TP{highest_target}:</b> "
+                        f"{format_price(target_price)}"
                     )
+
+                    if highest_target == 3:
+                        message += "\n\n<i>Trade monitoring closed.</i>"
+
                     send_trade_update(trade, message)
-                    trade["stop_hit"] = True
+
+                    with ACTIVE_TRADES_LOCK:
+                        if trade_id in ACTIVE_TRADES:
+                            ACTIVE_TRADES[trade_id]["highest_target_hit"] = highest_target
+                            for level in (1, 2, 3):
+                                ACTIVE_TRADES[trade_id][f"tp{level}_hit"] = (
+                                    level <= highest_target
+                                )
+
+                # TP3 closes the trade permanently.
+                if highest_target == 3:
                     with ACTIVE_TRADES_LOCK:
                         ACTIVE_TRADES.pop(trade_id, None)
-                    print("STOP LOSS HIT:", record_id, coin, price)
+
+                    print("TP3 HIT:", record_id, coin, price)
                     continue
 
-                if tp1_hit and not trade["tp1_hit"]:
-                    message = (
-                        "<b>🎯 TP1 HIT</b>\n\n"
-                        + prefix
-                        + f"🎯 <b>TP1:</b> {format_price(trade['tp1'])}"
-                    )
-                    send_trade_update(trade, message)
-                    trade["tp1_hit"] = True
-                    with ACTIVE_TRADES_LOCK:
-                        if trade_id in ACTIVE_TRADES:
-                            ACTIVE_TRADES[trade_id]["tp1_hit"] = True
-                    print("TP1 HIT:", record_id, coin, price)
+                # If a target was reached earlier, never call a later
+                # price reversal a normal stop-loss outcome.
+                if stop_hit:
+                    if highest_target > 0:
+                        message = (
+                            "<b>📌 TRADE CLOSED</b>\n\n"
+                            + prefix
+                            + f"<b>Final outcome:</b> TP{highest_target} reached\n"
+                            + "<i>Stop-loss alert suppressed because a target "
+                            "was reached first.</i>"
+                        )
+                        print(
+                            f"TRADE CLOSED AT PRIOR TARGET: "
+                            f"{record_id} {coin} TP{highest_target}"
+                        )
+                    else:
+                        message = (
+                            "<b>🛑 STOP LOSS HIT</b>\n\n"
+                            + prefix
+                            + "<i>Trade monitoring closed.</i>"
+                        )
+                        print("STOP LOSS HIT:", record_id, coin, price)
 
-                if tp2_hit and not trade["tp2_hit"]:
-                    message = (
-                        "<b>🎯 TP2 HIT</b>\n\n"
-                        + prefix
-                        + f"🎯 <b>TP2:</b> {format_price(trade['tp2'])}"
-                    )
                     send_trade_update(trade, message)
-                    trade["tp2_hit"] = True
-                    with ACTIVE_TRADES_LOCK:
-                        if trade_id in ACTIVE_TRADES:
-                            ACTIVE_TRADES[trade_id]["tp2_hit"] = True
-                    print("TP2 HIT:", record_id, coin, price)
+                    trade["stop_hit"] = True
 
-                if tp3_hit and not trade["tp3_hit"]:
-                    message = (
-                        "<b>🏆 TP3 HIT</b>\n\n"
-                        + prefix
-                        + f"🎯 <b>TP3:</b> {format_price(trade['tp3'])}\n\n"
-                        + "<i>Target monitoring closed.</i>"
-                    )
-                    send_trade_update(trade, message)
-                    trade["tp3_hit"] = True
                     with ACTIVE_TRADES_LOCK:
                         ACTIVE_TRADES.pop(trade_id, None)
-                    print("TP3 HIT:", record_id, coin, price)
 
         except Exception as exc:
             print("TRADE MONITOR ERROR:", repr(exc))
 
         time.sleep(60)
+
 
 # ============================================================
 # DISPLAY HELPERS
