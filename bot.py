@@ -212,10 +212,12 @@ def update_signal_outcome(
 
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
             with conn.cursor() as cur:
+                
                 cur.execute("""
                     SELECT entry_price, direction, highest_target_hit
                     FROM signal_records
                     WHERE id = %s
+                      AND status = 'OPEN'
                     FOR UPDATE
                 """, (record_id,))
 
@@ -223,7 +225,7 @@ def update_signal_outcome(
 
                 if record is None:
                     print(
-                        "REPORTING DB ERROR: signal record not found:",
+                        "REPORTING DB ERROR: signal record not found or already closed:",
                         record_id,
                     )
                     return False
