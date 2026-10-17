@@ -111,6 +111,15 @@ def init_reporting_db():
                     ADD COLUMN IF NOT EXISTS fees_usd DOUBLE PRECISION
                 """)
 
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS daily_report_log (
+                        report_date DATE NOT NULL,
+                        audience TEXT NOT NULL,
+                        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (report_date, audience)
+                    )
+                """)
+
             conn.commit()
 
         print("REPORTING DB: signal_records table is ready.")
