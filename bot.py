@@ -248,6 +248,29 @@ def update_signal_outcome(
                 )
                 return_pct = price_change * 100
 
+
+                # Simulated P/L: $1,000 position, no leverage.
+                # Assumed fee: 0.1% on entry and 0.1% on exit.
+                if position_size_usd is None:
+                    position_size_usd = 1000.0
+                else:
+                    position_size_usd = float(position_size_usd)
+
+                if fees_usd is None:
+                    entry_fee = position_size_usd * 0.001
+                    exit_notional = (
+                        position_size_usd * exit_price / float(entry_price)
+                    )
+                    exit_fee = exit_notional * 0.001
+                    fees_usd = entry_fee + exit_fee
+                else:
+                    fees_usd = float(fees_usd)
+
+                if pnl_usd is None:
+                    pnl_usd = (
+                        position_size_usd * price_change
+                    ) - fees_usd
+
                 cur.execute("""
                     UPDATE signal_records
                     SET status = %s,
