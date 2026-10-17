@@ -5806,6 +5806,8 @@ def monitor_active_trades():
                     with ACTIVE_TRADES_LOCK:
                         ACTIVE_TRADES.pop(trade_id, None)
 
+                trade["last_processed_candle"] = candle_timestamp
+
         except Exception as exc:
             print("TRADE MONITOR ERROR:", repr(exc))
 
