@@ -661,6 +661,14 @@ APPROVED_ASSETS = {
     "MON", "KERNEL", "TAG", "AST", "JELLYJELLY"
 }
 
+# BYDFi perpetual contracts explicitly approved for signals.
+# Configure BYDFI_PERPETUAL_ASSETS in Railway Variables.
+BYDFI_PERPETUAL_ASSETS = {
+    asset.strip().upper()
+    for asset in os.getenv("BYDFI_PERPETUAL_ASSETS", "").split(",")
+    if asset.strip()
+}
+
 OKX_PERPETUAL_MARKETS = {}
 OKX_MARKET_DISCOVERY_OK = False
 
@@ -5728,31 +5736,28 @@ def monitor_active_trades():
                     continue
 
                 
-                
-                # A stop hit determines the final outcome.
-                # Earlier target hits are recorded separately.
+                # Close at the active stop and report the
+                # highest target reached as the outcome.
                 if stop_hit:
-                    final_status = "SL"
-                    final_exit = effective_stop
-
                     if highest_target > 0:
+                        final_status = f"TP{highest_target}"
+                        final_exit = effective_stop
                         message = (
-                            "<b>🛑 TRADE CLOSED — STOP LOSS HIT</b>\n\n"
+                            "<b>📌 TRADE CLOSED</b>\n\n"
                             + prefix
-                            + f"<b>Highest target reached:</b> TP{highest_target}\n"
-                            + "<b>Final outcome:</b> SL\n"
+                            + f"<b>Final outcome:</b> {final_status}\n"
                             + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
-                            + "<i>The stop-loss determined the final outcome. "
-                            "P/L is calculated from the modeled exit.</i>"
+                            + "<i>Outcome reflects the highest target reached; P/L uses the modeled exit.</i>"
                         )
                     else:
+                        final_status = "SL"
+                        final_exit = effective_stop
                         message = (
                             "<b>🛑 STOP LOSS HIT</b>\n\n"
                             + prefix
                             + f"<b>Modeled exit:</b> {format_price(final_exit)}\n"
                             + "<i>Trade monitoring closed.</i>"
                         )
-
 
 
                     saved = update_signal_outcome(
@@ -7100,14 +7105,13 @@ def tradingview_webhook():
             ]
 
 
-        if symbol not in APPROVED_ASSETS:
-
+        
+        if symbol not in BYDFI_PERPETUAL_ASSETS:
             return jsonify({
-                "error":
-                    "Unsupported symbol",
-                "symbol":
-                    symbol,
+                "error": "Symbol not on BYDFi perpetual allowlist",
+                "symbol": symbol,
             }), 400
+
 
         if timeframe not in TIMEFRAMES:
 
