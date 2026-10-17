@@ -7537,6 +7537,7 @@ def start_background_engines():
 # ============================================================
 init_reporting_db()
 inspect_okx_perpetuals()
+inspect_gateio_missing_perpetuals()
 start_background_engines()
 
 if __name__ == "__main__":
