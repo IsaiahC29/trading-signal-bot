@@ -817,36 +817,7 @@ def inspect_gateio_missing_perpetuals():
                 candle_response.raise_for_status()
                 candles = candle_response.json()
                 print(
-                    "GATE.IO CANDLE TEST:",
-                    test_asset,
-                    "HTTP:",
-                    candle_response.status_code,
-                    "CANDLES:",
-                    len(candles) if isinstance(candles, list) else "INVALID",
-                    "USABLE:",
-                    isinstance(candles, list) and len(candles) >= 60,
-                )
-            except Exception as candle_exc:
-                print(
-                    "GATE.IO CANDLE TEST ERROR:",
-                    test_asset,
-                    repr(candle_exc),
-                )
-
-        print("GATE.IO LIVE USDT PERPETUAL COUNT:", len(gateio_assets))
-        print("OKX-MISSING ASSETS FOUND ON GATE.IO:", len(covered))
-        print("GATE.IO ADDITIONAL ASSET SAMPLE:", covered[:100])
-        print(
-            "OKX-MISSING ASSETS ALSO NOT FOUND ON GATE.IO:",
-            sorted(missing_from_okx - gateio_assets),
-        )
-
-        return covered
-
-    except Exception as exc:
-        print("GATE.IO CONTRACT DISCOVERY ERROR:", repr(exc))
-        return []
-
+                    
                     "GATE.IO CANDLE TEST:",
                     test_asset,
                     "HTTP:",
