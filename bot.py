@@ -5597,94 +5597,38 @@ def build_scan_message(
 # SIGNAL MESSAGE
 # ============================================================
 
-def build_signal_message(
-    analysis,
-    audience="free",
-):
 
-    signal = analysis.get(
-        "signal"
-    )
-
+def build_signal_message(analysis, audience="free"):
+    signal = analysis.get("signal")
     if not signal:
-
         return None
 
-    coin = analysis[
-        "coin"
-    ]
+    coin = analysis.get("coin", signal.get("coin", ""))
+    direction = signal.get("direction", "")
+    is_long = direction in ("CALL / LONG", "LONG")
+    direction_label = "LONG" if is_long else "SHORT"
+    emoji = "🟢" if is_long else "🔴"
+    title = "FREE SIGNAL" if audience == "free" else "VIP SIGNAL"
 
-    direction = signal[
-        "direction"
-    ]
+    entry = signal.get("entry")
+    stop = signal.get("invalidation")
+    tp1 = signal.get("target_1")
+    tp2 = signal.get("target_2")
+    tp3 = signal.get("target_3")
 
-    emoji = (
-        "🟢"
-        if direction
-        == "CALL / LONG"
-        else "🔴"
-    )
-
-    title = (
-        "FREE SIGNAL"
-        if audience == "free"
-        else "VIP SIGNAL"
-    )
+    if any(value is None for value in (entry, stop, tp1, tp2, tp3)):
+        return None
 
     return (
-        f"<b>🚨 SIDESHIFT AI — "
-        f"{title}</b>\n\n"
-
+        f"<b>🚨 SIDESHIFT AI — {title}</b>\n\n"
         f"{emoji} <b>{coin}</b>\n"
-
-        f"📍 <b>Direction:</b> "
-        f"{direction}\n"
-
-        f"💰 <b>Reference Price:</b> "
-        f"{format_price(signal['entry'])}\n\n"
-
-        f"🎯 <b>Analysis Strength:</b> "
-        f"{signal['analysis_strength']:.0f}%\n"
-
-        f"📊 <b>Timeframe Agreement:</b> "
-        f"{signal['agreement']:.0f}%\n"
-
-        f"🧱 <b>Structure:</b> "
-        f"{analysis['structure']}\n"
-
-        f"₿ <b>BTC Regime:</b> "
-        f"{signal['btc_regime']}\n"
-
-        f"📡 <b>Derivatives:</b> "
-        f"{signal['derivatives_bias']}\n\n"
-
-        "<b>📍 REFERENCE LEVELS</b>\n"
-
-        f"Entry: "
-        f"{format_price(signal['entry'])}\n"
-
-        f"Invalidation: "
-        f"{format_price(signal['invalidation'])}\n"
-
-        f"Target 1: "
-        f"{format_price(signal['target_1'])}\n"
-
-        f"Target 2: "
-        f"{format_price(signal['target_2'])}\n"
-
-        f"Target 3: "
-        f"{format_price(signal['target_3'])}\n\n"
-
-        "<b>⚠️ IMPORTANT</b>\n"
-
-        "These are analytical reference levels, "
-        "not guaranteed outcomes. "
-        "Use your own risk management.\n\n"
-
-        "<i>SideShift AI — "
-        "high-confluence market analysis.</i>"
+        f"📍 <b>Direction:</b> {direction_label}\n"
+        f"💰 <b>Entry:</b> {format_price(entry)}\n\n"
+        f"🎯 <b>TP1:</b> {format_price(tp1)}\n"
+        f"🎯 <b>TP2:</b> {format_price(tp2)}\n"
+        f"🎯 <b>TP3:</b> {format_price(tp3)}\n"
+        f"🛑 <b>Stop-loss:</b> {format_price(stop)}"
     )
-
 
 # ============================================================
 # SIGNAL ENGINE
