@@ -799,9 +799,9 @@ def inspect_gateio_missing_perpetuals():
         )
         covered = sorted(missing_from_okx & gateio_assets)
                   for test_asset in ["AIA", "ALICE", "KAS", "PAXG", "VET"]:
-            if test_asset not in covered:
-                continue
-            try:
+                  if test_asset not in covered:
+                  continue
+                try:
                 candle_response = requests.get(
                     "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
                     params={
