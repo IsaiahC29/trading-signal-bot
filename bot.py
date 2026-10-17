@@ -615,13 +615,50 @@ OKX_MARKET_CANDLES_URL = (
 
 # Approved assets to scan. OKX must independently verify
 # that each one is a live USDT-settled perpetual swap.
+
 APPROVED_ASSETS = {
-    "BTC", "ETH", "XRP", "DOGE", "LINK", "DOT", "ADA",
-    "AVAX", "SUI", "LTC", "BNB", "SOL", "NEAR", "APT",
-    "ARB", "OP", "INJ", "FIL", "ATOM", "UNI", "AAVE",
-    "ETC", "ALGO", "XLM", "HBAR", "SEI", "TIA", "RENDER",
-    "WIF", "BONK", "FLOKI", "1000RATS", "SIREN", "PYTH",
-    "TSLA", "NVDA", "XAU", "XAG",
+    # Large/liquid crypto
+    "BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ADA",
+    "AVAX", "LINK", "LTC", "DOT", "SUI", "BCH", "ICP",
+    "NEAR", "APT", "ARB", "OP", "INJ", "FIL", "ATOM",
+    "UNI", "AAVE", "ETC", "ALGO", "XLM", "HBAR", "SEI",
+    "TIA", "RENDER", "WLD", "PYTH", "JUP", "AR", "XTZ",
+    "VET", "GRT", "POL", "TRX", "EGLD", "LDO", "XDC",
+    "JTO", "ORCA", "JASMY", "IOST", "VIRTUAL", "GALA",
+    "VET", "RUNE", "IOTA", "IMX", "CHZ", "ARKM", "USTC",
+    "ENJ", "AXS", "SAGA", "CFX", "LUNA2", "SYN", "KSM",
+    "CVX", "CRO", "ZRX", "MNT", "GMX", "SKL", "SPELL",
+    "BSV", "AEVO", "1INCH", "PENDLE", "COMP", "SYRUP",
+    "DYDX", "THETA", "FLR", "BOME", "APE", "ONE", "BLUR",
+    "BAT", "HYPE", "TAO", "GRASS", "ENA", "CRV", "AERO",
+    "ONDO", "STX", "SAND", "AXL", "ICNT",
+
+    # Meme and leveraged-denomination contracts
+    "PEPE", "PENGU", "WIF", "BONK", "FLOKI", "SHIB",
+    "1000SHIB", "1000BONK", "1000LUNC", "1000PEPE",
+    "1000SATS", "1000RATS", "BOME", "TOSHI", "TURBO",
+    "MELANIA", "CLANKER", "JELLYJELLY", "FIGHT", "BAN",
+    "PUMP", "SIREN", "SKYAI", "GIGGLE", "TOSHI",
+
+    # Additional contracts from screenshots
+    "IBM", "ESPORTS", "PIPPIN", "BSB", "DEXE", "RAVE",
+    "SLP", "ME", "TNSR", "GUN", "ACH", "DRIFT", "HIVE",
+    "DYM", "RESOLV", "PRL", "TAC", "MERL", "DOOD",
+    "SAHARA", "DRAM", "ALLO", "EDGE", "PIEVERSE",
+    "NAORIS", "CGPT", "HYPER", "SONIC", "MOCA", "XAI",
+    "HOME", "AWE", "COPPER", "OPG", "ORDI", "B",
+    "SIGN", "KAT", "OFC", "BR", "CROSS", "AIA", "MYX",
+    "ERA", "OG", "BREV", "HEI", "POWR", "ALICE", "SPACE",
+    "COAI", "BULLA", "PHA", "LYN", "HUMA", "ASTER",
+    "AVNT", "PLTR", "GOOGL", "INTC", "MMT", "BIO",
+    "BZ", "ID", "BILL", "PIXEL", "BLESS", "ANIME",
+    "NFLX", "HOOD", "MSFT", "MRVL", "1000LUNC", "GENIUS",
+    "UB", "MET", "DELL", "GPS", "RECALL", "CLO", "SPX",
+    "STO", "EDEN", "ASR", "XAUT", "PAXG", "XAU", "XAG",
+    "TSLA", "NVDA", "AMZN", "QCOM", "AVGO", "MARA",
+    "XOM", "SHOP", "GME", "ON", "HYUNDAI", "UNITREE",
+    "KR200", "LYTE", "SPCH", "BICO", "SKY", "WLFI",
+    "MON", "KERNEL", "TAG", "AST", "JELLYJELLY"
 }
 
 OKX_PERPETUAL_MARKETS = {}
