@@ -5178,7 +5178,7 @@ def scan_market():
     results = []
 
     
-    scan_coins = sorted(BYDFI_PERPETUAL_ASSETS)
+ scan_coins = sorted(APPROVED_ASSETS)
 
     original_symbols = {}
     added_coins = []
@@ -7115,9 +7115,9 @@ def tradingview_webhook():
 
 
         
-        if symbol not in BYDFI_PERPETUAL_ASSETS:
+        if symbol not in APPROVED_ASSETS:
             return jsonify({
-                "error": "Symbol not on BYDFi perpetual allowlist",
+                "error": "Symbol not on approved asset list",
                 "symbol": symbol,
             }), 400
 
