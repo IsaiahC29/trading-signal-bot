@@ -5719,8 +5719,8 @@ def monitor_active_trades():
                             "TP3 CLOSE DEFERRED: database save failed",
                             record_id,
                         )
-                        
                         continue
+                        
                     with ACTIVE_TRADES_LOCK:
                         ACTIVE_TRADES.pop(trade_id, None)
                     continue
@@ -5758,7 +5758,14 @@ def monitor_active_trades():
                         final_status,
                         saved,
                     )
-
+                    
+                    if not saved:
+                        print(
+                            "FINAL CLOSE DEFERRED: database save failed",
+                            record_id,
+                        )
+                        continue
+                        
                     send_trade_update(trade, message)
 
                     with ACTIVE_TRADES_LOCK:
