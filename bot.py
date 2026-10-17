@@ -187,6 +187,112 @@ def save_signal_record(
         print("REPORTING DB SAVE ERROR:", repr(exc))
         return False
 
+
+def update_signal_outcome(
+    record_id,
+    status,
+    exit_price,
+    highest_target_hit=0,
+    pnl_usd=None,
+    position_size_usd=None,
+    fees_usd=None,
+):
+    if not DATABASE_URL:
+        print("REPORTING DB ERROR: cannot update outcome without DATABASE_URL.")
+        return False
+
+    valid_statuses = {"TP1", "TP2", "TP3", "SL"}
+
+    if status not in valid_statuses:
+        print("REPORTING DB ERROR: invalid outcome status:", status)
+        return False
+
+    try:
+        exit_price = float(exit_price)
+
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT entry_price, direction, highest_target_hit
+                    FROM signal_records
+                    WHERE id = %s
+                    FOR UPDATE
+                """, (record_id,))
+
+                record = cur.fetchone()
+
+                if record is None:
+                    print(
+                        "REPORTING DB ERROR: signal record not found:",
+                        record_id,
+                    )
+                    return False
+
+                entry_price, direction, previous_target = record
+                highest_target_hit = max(
+                    int(previous_target or 0),
+                    int(highest_target_hit or 0),
+                )
+
+                if entry_price <= 0:
+                    print("REPORTING DB ERROR: invalid entry price:", entry_price)
+                    return False
+
+                is_long = direction.upper() in ("LONG", "CALL / LONG")
+                price_change = (
+                    (exit_price - float(entry_price)) / float(entry_price)
+                    if is_long
+                    else (float(entry_price) - exit_price) / float(entry_price)
+                )
+                return_pct = price_change * 100
+
+                cur.execute("""
+                    UPDATE signal_records
+                    SET status = %s,
+                        exit_price = %s,
+                        return_pct = %s,
+                        outcome_updated_at = NOW(),
+                        highest_target_hit = %s,
+                        pnl_usd = %s,
+                        position_size_usd = COALESCE(
+                            %s, position_size_usd
+                        ),
+                        fees_usd = COALESCE(%s, fees_usd)
+                    WHERE id = %s
+                """, (
+                    status,
+                    exit_price,
+                    return_pct,
+                    highest_target_hit,
+                    float(pnl_usd) if pnl_usd is not None else None,
+                    (
+                        float(position_size_usd)
+                        if position_size_usd is not None
+                        else None
+                    ),
+                    float(fees_usd) if fees_usd is not None else None,
+                    record_id,
+                ))
+
+            conn.commit()
+
+        print(
+            "REPORTING DB: outcome updated",
+            record_id,
+            status,
+            "highest target:",
+            highest_target_hit,
+            "return %:",
+            round(return_pct, 4),
+            "simulated P/L:",
+            pnl_usd,
+        )
+        return True
+
+    except Exception as exc:
+        print("REPORTING DB OUTCOME ERROR:", repr(exc))
+        return False
+
 # ============================================================
 # ENVIRONMENT
 # ============================================================
