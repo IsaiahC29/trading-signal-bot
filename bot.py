@@ -798,34 +798,34 @@ def inspect_gateio_missing_perpetuals():
             set(APPROVED_ASSETS) - set(OKX_PERPETUAL_MARKETS)
         )
         covered = sorted(missing_from_okx & gateio_assets)
-          for test_asset in ["AIA", "ALICE", "KAS", "PAXG", "VET"]:
-              if test_asset not in covered:
-                  continue
-              try:
-                  candle_response = requests.get(
-                      "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
-                      params={
-                          "contract": f"{test_asset}_USDT",
-                          "interval": "5m",
-                          "limit": 60,
-                      },
-                      timeout=REQUEST_TIMEOUT,
-                      headers={"Accept": "application/json"},
-                  )
-                  candle_response.raise_for_status()
-                  candles = candle_response.json()
-                  print(
-                      "GATE.IO CANDLE TEST:",
-                      test_asset,
-                      "HTTP:",
-                      candle_response.status_code,
-                      "CANDLES:",
-                      len(candles) if isinstance(candles, list) else "INVALID",
-                      "USABLE:",
-                      isinstance(candles, list) and len(candles) >= 60,
-                  )
-              except Exception as candle_exc:
-                  print("GATE.IO CANDLE TEST ERROR:", test_asset, repr(candle_exc))
+                  for test_asset in ["AIA", "ALICE", "KAS", "PAXG", "VET"]:
+            if test_asset not in covered:
+                continue
+            try:
+                candle_response = requests.get(
+                    "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
+                    params={
+                        "contract": f"{test_asset}_USDT",
+                        "interval": "5m",
+                        "limit": 60,
+                    },
+                    timeout=REQUEST_TIMEOUT,
+                    headers={"Accept": "application/json"},
+                )
+                candle_response.raise_for_status()
+                candles = candle_response.json()
+                print(
+                    "GATE.IO CANDLE TEST:",
+                    test_asset,
+                    "HTTP:",
+                    candle_response.status_code,
+                    "CANDLES:",
+                    len(candles) if isinstance(candles, list) else "INVALID",
+                    "USABLE:",
+                    isinstance(candles, list) and len(candles) >= 60,
+                )
+            except Exception as candle_exc:
+                print("GATE.IO CANDLE TEST ERROR:", test_asset, repr(candle_exc))
         print("GATE.IO LIVE USDT PERPETUAL COUNT:", len(gateio_assets))
         print("OKX-MISSING ASSETS FOUND ON GATE.IO:", len(covered))
         print("GATE.IO ADDITIONAL ASSET SAMPLE:", covered[:100])
