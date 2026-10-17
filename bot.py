@@ -5368,7 +5368,89 @@ def send_trade_update(trade, message):
     return sent
 
 
+def restore_active_trades_from_db():
+    if not DATABASE_URL:
+        print("ACTIVE TRADE RESTORE: DATABASE_URL is missing.")
+        return False
 
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id, audience, coin, direction,
+                        entry_price, stop_price,
+                        tp1_price, tp2_price, tp3_price,
+                        highest_target_hit, sent_at
+                    FROM signal_records
+                    WHERE status = 'OPEN'
+                    ORDER BY sent_at ASC
+                """)
+                rows = cur.fetchall()
+
+        restored = 0
+
+        for row in rows:
+            (
+                record_id, audience, coin, direction,
+                entry, stop, tp1, tp2, tp3,
+                highest_target, sent_at
+            ) = row
+
+            if audience not in ("free", "vip"):
+                continue
+
+            direction = str(direction).upper()
+            if direction in ("CALL / LONG", "LONG"):
+                direction = "LONG"
+            elif direction in ("PUT / SHORT", "SHORT"):
+                direction = "SHORT"
+            else:
+                continue
+
+            chat_id = (
+                FREE_SIGNAL_CHAT_ID
+                if audience == "free"
+                else VIP_SIGNAL_CHAT_ID
+            )
+
+            highest_target = int(highest_target or 0)
+
+            trade = {
+                "record_id": record_id,
+                "audience": audience,
+                "coin": coin,
+                "direction": direction,
+                "entry": entry,
+                "stop": stop,
+                "tp1": tp1,
+                "tp2": tp2,
+                "tp3": tp3,
+                "highest_target_hit": highest_target,
+                "tp1_hit": highest_target >= 1,
+                "tp2_hit": highest_target >= 2,
+                "tp3_hit": highest_target >= 3,
+                "stop_hit": False,
+                "free_chat_id": (
+                    chat_id if audience == "free" else None
+                ),
+                "vip_chat_id": (
+                    chat_id if audience == "vip" else None
+                ),
+                "created_at": time.time(),
+            }
+
+            with ACTIVE_TRADES_LOCK:
+                ACTIVE_TRADES[str(record_id)] = trade
+
+            restored += 1
+
+        print("ACTIVE TRADE RESTORE: restored", restored, "open trades.")
+        return True
+
+    except Exception as exc:
+        print("ACTIVE TRADE RESTORE ERROR:", repr(exc))
+        return False
 
 
 def monitor_active_trades():
@@ -7108,6 +7190,8 @@ def start_background_engines():
 
     BACKGROUND_STARTED = True
 
+    restore_active_trades_from_db()
+    
     if (
         FREE_SIGNAL_CHAT_ID
         or VIP_SIGNAL_CHAT_ID
