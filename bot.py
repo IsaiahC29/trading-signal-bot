@@ -5488,8 +5488,11 @@ def register_active_trade(analysis, record_id, audience):
 def get_monitor_price(coin):
     try:
         candles, provider = get_market_candles(coin, "5m")
-        if candles:
-            return candles[-1]
+
+        # Ignore the newest candle because it may still be forming.
+        if candles and len(candles) >= 2:
+            return candles[-2]
+
     except Exception as exc:
         print("MONITOR PRICE ERROR:", coin, repr(exc))
 
@@ -5614,13 +5617,21 @@ def monitor_active_trades():
                 if not coin or not record_id:
                     print("MONITOR SKIPPED: missing coin or record ID")
                     continue
-
+                
                 
                 candle = get_monitor_price(coin)
                 if candle is None:
                     continue
 
+                candle_timestamp = candle["timestamp"]
+
+                if trade.get("last_processed_candle") == candle_timestamp:
+                    continue
+
+                trade["last_processed_candle"] = candle_timestamp
+
                 price = float(candle["close"])
+
                 candle_high = float(candle["high"])
                 candle_low = float(candle["low"])
 
