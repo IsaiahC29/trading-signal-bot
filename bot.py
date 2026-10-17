@@ -1872,124 +1872,96 @@ def get_binance_futures_candles(
         return []
 
 
+
 def get_market_candles(coin, timeframe):
     coin = coin.upper()
 
-    
-    # Only analyze approved assets verified by OKX discovery.
-    if not OKX_MARKET_DISCOVERY_OK:
-        print("OKX FUTURES UNAVAILABLE — CANDLES BLOCKED:", coin)
+    if coin not in APPROVED_ASSETS:
+        print("ASSET NOT IN MASTER LIST:", coin)
         return [], None
 
-    if coin not in APPROVED_ASSETS or coin not in OKX_PERPETUAL_MARKETS:
-        print("NOT AN APPROVED LIVE OKX USDT PERPETUAL:", coin)
+    configured = TIMEFRAMES.get(timeframe, {})
+    interval = configured.get("binance")
+
+    if not interval:
+        print("UNSUPPORTED TIMEFRAME:", timeframe)
         return [], None
 
-    timeframe_map = {
-        "5m": "5m",
-        "15m": "15m",
-        "30m": "30m",
-        "1h": "1H",
-        "1H": "1H",
-        "4h": "4H",
-        "4H": "4H",
-        "1d": "1D",
-        "1D": "1D",
-    }
+    # Source 1: OKX USDT perpetual candles.
+    if OKX_MARKET_DISCOVERY_OK and coin in OKX_PERPETUAL_MARKETS:
+        symbol = OKX_PERPETUAL_MARKETS[coin]
 
-    bar = timeframe_map.get(str(timeframe))
-    if not bar:
-        configured = TIMEFRAMES.get(timeframe, {})
-        configured_interval = configured.get("binance")
-        bar = timeframe_map.get(str(configured_interval))
+        timeframe_map = {
+            "5m": "5m",
+            "15m": "15m",
+            "30m": "30m",
+            "1h": "1H",
+            "4h": "4H",
+            "1D": "1D",
+        }
+        bar = timeframe_map.get(timeframe)
 
-    if not bar:
-        print("UNSUPPORTED OKX TIMEFRAME:", timeframe)
-        return [], None
+        if bar:
+            try:
+                response = requests.get(
+                    OKX_MARKET_CANDLES_URL,
+                    params={
+                        "instId": symbol,
+                        "bar": bar,
+                        "limit": "200",
+                    },
+                    timeout=REQUEST_TIMEOUT,
+                    headers={"User-Agent": "SideShiftAI/4.0"},
+                )
+                response.raise_for_status()
+                payload = response.json()
 
-    # OKX is the candle-data source, not the execution venue.
-    # The instrument must be a USDT-settled perpetual swap.
-    symbol = OKX_PERPETUAL_MARKETS[coin]
+                if payload.get("code") == "0":
+                    candles = []
+                    for row in payload.get("data", []):
+                        if len(row) >= 6:
+                            candles.append({
+                                "timestamp": int(row[0]),
+                                "open": float(row[1]),
+                                "high": float(row[2]),
+                                "low": float(row[3]),
+                                "close": float(row[4]),
+                                "volume": float(row[5]),
+                            })
+
+                    candles.sort(key=lambda candle: candle["timestamp"])
+
+                    if len(candles) >= 60:
+                        print("CANDLE SOURCE: OKX", coin, timeframe)
+                        return candles, "OKX USDT Perpetual Candles"
+
+            except Exception as exc:
+                print("OKX CANDLE FALLBACK:", coin, repr(exc))
+
+    # Source 2: Binance USD-M perpetual candles.
+    # Binance must independently have this exact futures contract.
+    binance_symbol = coin + "USDT"
 
     try:
-        response = requests.get(
-            OKX_MARKET_CANDLES_URL,
-            params={
-                "instId": symbol,
-                "bar": bar,
-                "limit": "200",
-            },
-            timeout=REQUEST_TIMEOUT,
-            headers={
-                "User-Agent": "SideShiftAI/4.0",
-            },
+        candles = get_binance_futures_candles(
+            binance_symbol,
+            interval,
+            limit=200,
         )
 
-        if response.status_code != 200:
-            print(
-                "OKX CANDLES HTTP ERROR:",
-                response.status_code,
-                symbol,
-                bar,
-            )
-            return [], None
-
-        payload = response.json()
-
-        if payload.get("code") != "0":
-            print(
-                "OKX CANDLES API ERROR:",
-                payload.get("code"),
-                payload.get("msg"),
-                symbol,
-            )
-            return [], None
-
-        rows = payload.get("data", [])
-        candles = []
-
-        for row in rows:
-            if len(row) < 6:
-                continue
-
-            candles.append({
-                "timestamp": int(row[0]),
-                "open": float(row[1]),
-                "high": float(row[2]),
-                "low": float(row[3]),
-                "close": float(row[4]),
-                "volume": float(row[5]),
-            })
-
-        # OKX returns candles newest-first; indicators need
-        # oldest-first chronological order.
-        candles.sort(key=lambda candle: candle["timestamp"])
-
-        if len(candles) < 60:
-            print(
-                "OKX INSUFFICIENT PERPETUAL CANDLES:",
-                coin,
-                bar,
-                len(candles),
-            )
-            return [], None
-
-        print(
-            "OKX PERPETUAL CANDLES READY:",
-            symbol,
-            bar,
-            len(candles),
-        )
-        return candles, "OKX USDT Perpetual Candles"
+        if len(candles) >= 60:
+            print("CANDLE SOURCE: BINANCE FUTURES", coin, timeframe)
+            return candles, "Binance USD-M Perpetual Candles"
 
     except Exception as exc:
-        print(
-            "OKX FUTURES CANDLE ERROR:",
-            symbol,
-            repr(exc),
-        )
-        return [], None
+        print("BINANCE FUTURES FALLBACK:", coin, repr(exc))
 
+    print(
+        "NO USABLE PERPETUAL CANDLE SOURCE:",
+        coin,
+        timeframe,
+    )
+    return [], None
 
 # ============================================================
 # COINMARKETCAP FALLBACK
@@ -5190,95 +5162,26 @@ def scan_market():
     
     results = []
 
-    futures_universe = (
-    get_okx_perpetual_universe()
-    )
+    
+    scan_coins = sorted(APPROVED_ASSETS)
 
     original_symbols = {}
     added_coins = []
 
-    if futures_universe:
+    for base in scan_coins:
+        if base in COINS:
+            original_symbols[base] = COINS[base].get("binance")
+            COINS[base]["binance"] = base + "USDT"
+        else:
+            COINS[base] = {
+                "coinbase": "",
+                "kraken": "",
+                "binance": base + "USDT",
+                "cmc": base,
+            }
+            added_coins.append(base)
 
-        scan_coins = []
-
-        for base, symbol in (
-            futures_universe.items()
-        ):
-
-            if base in COINS:
-
-                original_symbols[base] = (
-                    COINS[base].get("binance")
-                )
-
-                COINS[base]["binance"] = symbol
-
-            else:
-
-                COINS[base] = {
-                    "coinbase": "",
-                    "kraken": "",
-                    "binance": symbol,
-                    "cmc": base,
-                }
-
-                added_coins.append(base)
-
-            scan_coins.append(base)
-
-        print(
-            "SCANNING FUTURES CONTRACTS:",
-            len(scan_coins),
-        )
-
-    else:
-        print(
-            "OKX FUTURES DISCOVERY FAILED — "
-            "SCANNING PAUSED"
-        )
-
-        return {
-            "btc_regime": "UNKNOWN",
-            "analyses": [],
-            "signals": [],
-        }
-
-    for coin in scan_coins:
-
-        try:
-
-            analysis = scan_coin(
-                coin,
-                btc_regime=btc_regime,
-            )
-
-            if analysis:
-
-                results.append(
-                    analysis
-                )
-
-        except Exception as exc:
-
-            print(
-                "MARKET SCAN ERROR:",
-                coin,
-                repr(exc),
-            )
-
-    for base in added_coins:
-
-        COINS.pop(
-            base,
-            None,
-        )
-
-    for base, symbol in (
-        original_symbols.items()
-    ):
-
-        COINS[base]["binance"] = symbol
-
+    print("MASTER ASSET SCAN COUNT:", len(scan_coins))
 
     qualified = [
         x
