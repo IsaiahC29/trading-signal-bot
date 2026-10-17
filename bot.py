@@ -7384,7 +7384,8 @@ def start_background_engines():
     BACKGROUND_STARTED = True
 
     restore_active_trades_from_db()
-        report_thread = threading.Thread(
+    
+    report_thread = threading.Thread(
         target=daily_report_loop,
         daemon=True,
     )
