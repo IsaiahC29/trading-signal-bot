@@ -5683,10 +5683,9 @@ def monitor_active_trades():
                     f"{format_price(price)}\n\n"
                 )
 
-                # Persist target progress without closing the signal.
+                
+                # Persist target progress before notifying subscribers.
                 if highest_target > previous_target:
-                    trade["highest_target_hit"] = highest_target
-
                     try:
                         with psycopg.connect(DATABASE_URL) as conn:
                             with conn.cursor() as cur:
@@ -5699,12 +5698,23 @@ def monitor_active_trades():
                                     """,
                                     (highest_target, record_id),
                                 )
+
+                                if cur.rowcount != 1:
+                                    print(
+                                        "TARGET PROGRESS NOT SAVED:",
+                                        record_id,
+                                    )
+                                    continue
+
                     except Exception as exc:
                         print(
                             "TARGET PROGRESS DB ERROR:",
                             record_id,
                             repr(exc),
                         )
+                        continue
+
+                    trade["highest_target_hit"] = highest_target
 
                     target_price = trade[f"tp{highest_target}"]
                     message = (
