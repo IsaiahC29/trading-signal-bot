@@ -5619,6 +5619,7 @@ def monitor_active_trades():
                     continue
                 
                 
+                
                 candle = get_monitor_price(coin)
                 if candle is None:
                     continue
@@ -5627,8 +5628,6 @@ def monitor_active_trades():
 
                 if trade.get("last_processed_candle") == candle_timestamp:
                     continue
-
-                trade["last_processed_candle"] = candle_timestamp
 
                 price = float(candle["close"])
 
