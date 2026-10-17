@@ -7188,18 +7188,6 @@ def tradingview_webhook():
                     symbol,
             }), 400
 
-        if (
-            not OKX_MARKET_DISCOVERY_OK
-            or symbol not in OKX_PERPETUAL_MARKETS
-        ):
-
-            return jsonify({
-                "error":
-                    "No verified OKX USDT perpetual market for symbol",
-                "symbol":
-                    symbol,
-            }), 400
-
         if timeframe not in TIMEFRAMES:
 
             return jsonify({
