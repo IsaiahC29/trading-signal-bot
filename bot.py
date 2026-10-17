@@ -5183,6 +5183,23 @@ def scan_market():
 
     print("MASTER ASSET SCAN COUNT:", len(scan_coins))
 
+    for coin in scan_coins:
+        try:
+            analysis = scan_coin(
+                coin,
+                btc_regime=btc_regime,
+            )
+            if analysis:
+                results.append(analysis)
+        except Exception as exc:
+            print("MARKET SCAN ERROR:", coin, repr(exc))
+
+    for base in added_coins:
+        COINS.pop(base, None)
+
+    for base, symbol in original_symbols.items():
+        COINS[base]["binance"] = symbol
+
     qualified = [
         x
         for x in results
