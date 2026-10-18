@@ -7361,6 +7361,35 @@ def telegram_webhook():
                 })
 
             
+            if callback_data == "vip_payment_methods":
+                send_telegram(
+                    "<b>👑 SIDESHIFT AI VIP — $50</b>\n\n"
+                    "Choose your preferred payment method.\n\n"
+                    "After payment, submit your receipt. "
+                    "Your VIP access link will be sent once "
+                    "your payment is verified.",
+                    chat_id,
+                    [
+                        [{
+                            "text": "💵 Pay with Cash App",
+                            "callback_data": "vip_pay_cashapp",
+                        }],
+                        [{
+                            "text": "₿ Pay with Bitcoin (BTC)",
+                            "callback_data": "vip_pay_btc",
+                        }],
+                        [{
+                            "text": "◆ Pay with Ethereum",
+                            "callback_data": "vip_pay_eth",
+                        }],
+                        [{
+                            "text": "⬅️ Back to VIP Options",
+                            "callback_data": "vip",
+                        }],
+                    ],
+                )
+                return jsonify({"ok": True})
+
             if callback_data == "vip":
                 send_vip(chat_id)
                 return jsonify({"ok": True})
