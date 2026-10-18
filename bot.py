@@ -6892,34 +6892,31 @@ def send_free_info(
 # ============================================================
 
 
+
 def send_vip(chat_id):
     message = (
         "<b>👑 SIDESHIFT AI VIP</b>\n\n"
-        f"Up to {MAX_VIP_SIGNALS_PER_DAY} qualifying signals per day.\n"
-        "Signals depend on market conditions; the limit is not a quota.\n\n"
-        "<b>VIP Access — $50 one-time payment</b>\n"
-        "Choose your preferred payment method below.\n\n"
-        "After paying, submit your receipt privately for review. "
-        "VIP access is granted only after payment is verified and approved."
+        "Choose how you'd like to get started.\n\n"
+        "<b>🆓 Option 1: Free BYDFi Registration</b>\n"
+        "Create a BYDFi account for free using our referral link.\n"
+        "Registration alone does not unlock VIP access.\n\n"
+        "<b>👑 Option 2: VIP Access — $50 One-Time Payment</b>\n"
+        "Choose a payment method, submit your receipt, "
+        "and receive your VIP access link once your payment "
+        "has been verified."
     )
 
     keyboard = [
         [
             {
-                "text": "💵 Pay with Cash App",
-                "callback_data": "vip_pay_cashapp",
+                "text": "🆓 Register with BYDFi — FREE",
+                "url": "https://s.bydfi.com/referral/Umn3FDfB",
             }
         ],
         [
             {
-                "text": "₿ Pay with Bitcoin (BTC)",
-                "callback_data": "vip_pay_btc",
-            }
-        ],
-        [
-            {
-                "text": "◆ Pay with Ethereum (ERC-20)",
-                "callback_data": "vip_pay_eth",
+                "text": "👑 Get VIP Access — $50",
+                "callback_data": "vip_payment_methods",
             }
         ],
         [
