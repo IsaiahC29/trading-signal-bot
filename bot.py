@@ -5323,10 +5323,10 @@ def scan_market():
     results = []
 
     
-scan_coins = sorted(
-    set(APPROVED_ASSETS)
-    & (set(OKX_PERPETUAL_MARKETS) | set(GATEIO_PERPETUAL_MARKETS))
-)
+    scan_coins = sorted(
+        set(APPROVED_ASSETS)
+        & (set(OKX_PERPETUAL_MARKETS) | set(GATEIO_PERPETUAL_MARKETS))
+    )
 
     original_symbols = {}
     added_coins = []
