@@ -7218,18 +7218,71 @@ def telegram_webhook():
                     "ok": True
                 })
 
-            if (
-                callback_data
-                == "vip"
-            ):
+            
+            if callback_data == "vip":
+                send_vip(chat_id)
+                return jsonify({"ok": True})
 
-                send_vip(
-                    chat_id
+            if callback_data == "vip_pay_cashapp":
+                send_telegram(
+                    "<b>💵 CASH APP — $50 VIP</b>\n\n"
+                    "Send the one-time $50 payment to:\n"
+                    "<code>$SideShiftAI</code>\n\n"
+                    "After paying, return here and send your "
+                    "payment receipt screenshot privately.\n\n"
+                    "Access is granted only after payment is verified.",
+                    chat_id,
+                    [[{
+                        "text": "📸 Submit Payment Receipt",
+                        "callback_data": "vip_submit_receipt",
+                    }], [{
+                        "text": "⬅️ Back to VIP",
+                        "callback_data": "vip",
+                    }]],
                 )
+                return jsonify({"ok": True})
 
-                return jsonify({
-                    "ok": True
-                })
+            if callback_data == "vip_pay_btc":
+                send_telegram(
+                    "<b>₿ BITCOIN — $50 VIP</b>\n\n"
+                    "Send the equivalent of $50 USD in BTC to:\n"
+                    "<code>3GCt2NxCpEXjriRBTvfKhLRTrN1Zt6vRgE</code>\n\n"
+                    "Check the network and amount carefully. "
+                    "Crypto transfers may be irreversible.\n\n"
+                    "After paying, submit your transaction receipt "
+                    "or screenshot for review.",
+                    chat_id,
+                    [[{
+                        "text": "📸 Submit Payment Receipt",
+                        "callback_data": "vip_submit_receipt",
+                    }], [{
+                        "text": "⬅️ Back to VIP",
+                        "callback_data": "vip",
+                    }]],
+                )
+                return jsonify({"ok": True})
+
+            if callback_data == "vip_pay_eth":
+                send_telegram(
+                    "<b>◆ ETHEREUM (ERC-20) — $50 VIP</b>\n\n"
+                    "Send the equivalent of $50 USD in ETH to:\n"
+                    "<code>0x0d90E36aFF0d65037e802c222258797174Cb6f16</code>\n\n"
+                    "Use the Ethereum network (ERC-20) only. "
+                    "Sending through the wrong network may result "
+                    "in permanent loss.\n\n"
+                    "After paying, submit your transaction receipt "
+                    "or screenshot for review.",
+                    chat_id,
+                    [[{
+                        "text": "📸 Submit Payment Receipt",
+                        "callback_data": "vip_submit_receipt",
+                    }], [{
+                        "text": "⬅️ Back to VIP",
+                        "callback_data": "vip",
+                    }]],
+                )
+                return jsonify({"ok": True})
+
 
         return jsonify({
             "ok": True
