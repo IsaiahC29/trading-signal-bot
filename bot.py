@@ -2042,32 +2042,54 @@ def get_market_candles(coin, timeframe):
                     headers={"Accept": "application/json"},
                 )
                 gate_response.raise_for_status()
-                rows = gate_response.json()
-                candles = []
+                
+rows = gate_response.json()
+candles = []
 
-                if isinstance(rows, list):
-                    for row in rows:
-                        if not isinstance(row, (list, tuple)) or len(row) < 6:
-                            continue
-                        try:
-                            candle = {
-                                "timestamp": int(float(row[0])) * 1000,
-                                "open": float(row[5]),
-                                "high": float(row[3]),
-                                "low": float(row[4]),
-                                "close": float(row[2]),
-                                "volume": float(row[1]),
-                            }
-                            if (
-                                candle["open"] > 0
-                                and candle["high"] > 0
-                                and candle["low"] > 0
-                                and candle["close"] > 0
-                                and candle["high"] >= candle["low"]
-                            ):
-                                candles.append(candle)
-                        except (TypeError, ValueError, OverflowError):
-                            continue
+if isinstance(rows, list):
+    for row in rows:
+        try:
+            if isinstance(row, dict):
+                timestamp = row.get("t", row.get("timestamp"))
+                open_price = row.get("o", row.get("open"))
+                high_price = row.get("h", row.get("high"))
+                low_price = row.get("l", row.get("low"))
+                close_price = row.get("c", row.get("close"))
+                volume = row.get("v", row.get("volume", 0))
+            elif isinstance(row, (list, tuple)) and len(row) >= 6:
+                timestamp, volume, close_price, high_price, low_price, open_price = row[:6]
+            else:
+                continue
+
+            timestamp = int(float(timestamp))
+            if timestamp < 100_000_000_000:
+                timestamp *= 1000
+
+            candle = {
+                "timestamp": timestamp,
+                "open": float(open_price),
+                "high": float(high_price),
+                "low": float(low_price),
+                "close": float(close_price),
+                "volume": float(volume or 0),
+            }
+
+            if (
+                candle["open"] > 0
+                and candle["high"] > 0
+                and candle["low"] > 0
+                and candle["close"] > 0
+                and candle["high"] >= candle["low"]
+                and candle["high"] >= candle["open"]
+                and candle["high"] >= candle["close"]
+                and candle["low"] <= candle["open"]
+                and candle["low"] <= candle["close"]
+            ):
+                candles.append(candle)
+
+        except (TypeError, ValueError, OverflowError):
+            continue
+
 
                 candles.sort(key=lambda item: item["timestamp"])
 
