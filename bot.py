@@ -6934,6 +6934,12 @@ def send_vip(chat_id):
                 "url": "https://s.bydfi.com/referral/Umn3FDfB",
             }
         ],
+                [
+            {
+                "text": "📝 I've Registered — Submit UID",
+                "callback_data": "vip_submit_uid",
+            }
+        ],
         [
             {
                 "text": "👑 Get VIP Access — $50",
