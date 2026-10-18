@@ -6797,19 +6797,46 @@ def send_free_info(
 
         return send_telegram(
             (
-                "<b>🟢 SIDESHIFT AI "
-                "FREE SIGNALS</b>\n\n"
+                              "<b>🟢 WELCOME TO SIDESHIFT AI 4.0!</b>\n\n"
+                "<b>I'm here because I want to see you win. 💚</b>\n\n"
 
-                f"Maximum "
-                f"{MAX_FREE_SIGNALS_PER_DAY} "
-                "signals per day.\n\n"
+                "My purpose isn't simply to send you trading signals. "
+                "It's to help you identify opportunities, understand "
+                "the market, make smarter trading decisions, and "
+                "develop the discipline to become a better trader.\n\n"
 
-                "The daily number is a ceiling, "
-                "not a promise that all signals "
-                "will be used.\n\n"
+                "📊 <b>AI-POWERED MARKET ANALYSIS</b>\n"
+                "I'll continuously scan supported crypto perpetual "
+                "futures markets for potential LONG 📈 and SHORT 📉 "
+                "opportunities.\n\n"
 
-                "Only setups that pass the "
-                "SideShift filters are sent."
+                "🎯 <b>TRADE WITH A PLAN</b>\n"
+                "Signals include structured entry levels, stop-losses, "
+                "and take-profit targets to help you approach trades "
+                "with a plan instead of guesswork.\n\n"
+
+                "🧠 <b>LEARN WHILE YOU TRADE</b>\n"
+                "Learn why confirmation, patience, and risk management "
+                "matter. The more you understand, the better equipped "
+                "you'll be to make informed decisions.\n\n"
+
+                "🛡️ <b>YOUR GROWTH MATTERS</b>\n"
+                "I'll evaluate the market, filter potential setups, "
+                "and deliver signals when the required conditions "
+                "are met. I won't force trades just to fill a quota.\n\n"
+
+                "💚 <b>I WANT TO SEE YOU GROW AND WORK TOWARD "
+                "YOUR PROFITABILITY.</b>\n\n"
+
+                f"🟢 Free members can receive up to "
+                f"{MAX_FREE_SIGNALS_PER_DAY} qualifying signals per day. "
+                "Actual frequency depends on market conditions.\n\n"
+
+                "Let's work toward your success together. 🚀\n\n"
+
+                "⚠️ Crypto perpetual futures involve substantial risk, "
+                "including liquidation. No signal guarantees profit. "
+                "Always manage your risk responsibly."
             ),
             chat_id,
             keyboard,
