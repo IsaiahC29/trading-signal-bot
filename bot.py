@@ -7795,15 +7795,25 @@ def telegram_webhook():
                     )
                     return jsonify({"ok": True})
 
-                invite_response = requests.post(
-                    f"{TELEGRAM_API}/createChatInviteLink",
-                    json={
-                        "chat_id": VIP_SIGNAL_CHAT_ID,
-                        "member_limit": 1,
-                    },
-                    timeout=15,
-                )
-                invite_data = invite_response.json()
+                
+                try:
+                    invite_response = requests.post(
+                        f"{TELEGRAM_API}/createChatInviteLink",
+                        json={
+                            "chat_id": VIP_SIGNAL_CHAT_ID,
+                            "member_limit": 1,
+                        },
+                        timeout=15,
+                    )
+                    invite_data = invite_response.json()
+                except Exception as exc:
+                    print("VIP INVITE REQUEST EXCEPTION:", repr(exc))
+                    send_telegram(
+                        "Telegram invite creation failed due to a request error. "
+                        "Check Railway logs for VIP INVITE REQUEST EXCEPTION.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
 
                 if (
                     not invite_response.ok
