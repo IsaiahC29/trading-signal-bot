@@ -7269,6 +7269,15 @@ def telegram_webhook():
             )
             
             if callback_data == "vip_pay_cashapp":
+                if not user_id or not begin_vip_receipt_submission(
+                    user_id, username, full_name, "cashapp"
+                ):
+                    send_telegram(
+                        "Sorry, we couldn't start your payment submission. Please try again later.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
                 send_telegram(
                     "<b>💵 CASH APP — $50 VIP</b>\n\n"
                     "Send the one-time $50 payment to:\n"
