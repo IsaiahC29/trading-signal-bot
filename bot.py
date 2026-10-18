@@ -59,6 +59,16 @@ app = Flask(__name__)
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
+# SIMULATED FUTURES SETTINGS
+SIMULATED_MARGIN_USD = float(os.getenv("SIMULATED_MARGIN_USD", "1000"))
+
+try:
+    SIMULATED_LEVERAGE = int(os.getenv("SIMULATED_LEVERAGE", "25"))
+except (TypeError, ValueError):
+    SIMULATED_LEVERAGE = 25
+
+SIMULATED_LEVERAGE = max(25, min(100, SIMULATED_LEVERAGE))
+
 
 def init_reporting_db():
     if not DATABASE_URL:
@@ -197,6 +207,7 @@ def save_signal_record(
         return False
 
 
+
 def update_signal_outcome(
     record_id,
     status,
@@ -207,7 +218,7 @@ def update_signal_outcome(
     fees_usd=None,
 ):
     if not DATABASE_URL:
-        print("REPORTING DB ERROR: cannot update outcome without DATABASE_URL.")
+        print("REPORTING DB ERROR: DATABASE_URL is not configured.")
         return False
 
     valid_statuses = {"TP1", "TP2", "TP3", "SL"}
@@ -221,12 +232,10 @@ def update_signal_outcome(
 
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
             with conn.cursor() as cur:
-                
                 cur.execute("""
                     SELECT entry_price, direction, highest_target_hit
                     FROM signal_records
-                    WHERE id = %s
-                      AND status = 'OPEN'
+                    WHERE id = %s AND status = 'OPEN'
                     FOR UPDATE
                 """, (record_id,))
 
@@ -234,7 +243,7 @@ def update_signal_outcome(
 
                 if record is None:
                     print(
-                        "REPORTING DB ERROR: signal record not found or already closed:",
+                        "REPORTING DB ERROR: signal not found or already closed:",
                         record_id,
                     )
                     return False
@@ -249,36 +258,28 @@ def update_signal_outcome(
                     print("REPORTING DB ERROR: invalid entry price:", entry_price)
                     return False
 
-                is_long = direction.upper() in ("LONG", "CALL / LONG")
+                is_long = str(direction).upper() in ("LONG", "CALL / LONG")
+
                 price_change = (
                     (exit_price - float(entry_price)) / float(entry_price)
                     if is_long
                     else (float(entry_price) - exit_price) / float(entry_price)
                 )
-                return_pct = price_change * 100
 
+                # Gross simulated return on the margin, with leverage.
+                return_pct = price_change * SIMULATED_LEVERAGE * 100
 
-                # Simulated P/L: $1,000 position, no leverage.
-                # Assumed fee: 0.1% on entry and 0.1% on exit.
                 if position_size_usd is None:
-                    position_size_usd = 1000.0
+                    position_size_usd = SIMULATED_MARGIN_USD
                 else:
                     position_size_usd = float(position_size_usd)
 
-                if fees_usd is None:
-                    entry_fee = position_size_usd * 0.001
-                    exit_notional = (
-                        position_size_usd * exit_price / float(entry_price)
-                    )
-                    exit_fee = exit_notional * 0.001
-                    fees_usd = entry_fee + exit_fee
-                else:
-                    fees_usd = float(fees_usd)
+                # No simulated trading fees are deducted.
+                fees_usd = 0.0
 
                 if pnl_usd is None:
-                    pnl_usd = (
-                        position_size_usd * price_change
-                    ) - fees_usd
+                    notional_usd = position_size_usd * SIMULATED_LEVERAGE
+                    pnl_usd = notional_usd * price_change
 
                 cur.execute("""
                     UPDATE signal_records
@@ -288,23 +289,16 @@ def update_signal_outcome(
                         outcome_updated_at = NOW(),
                         highest_target_hit = %s,
                         pnl_usd = %s,
-                        position_size_usd = COALESCE(
-                            %s, position_size_usd
-                        ),
-                        fees_usd = COALESCE(%s, fees_usd)
+                        position_size_usd = %s,
+                        fees_usd = 0
                     WHERE id = %s
                 """, (
                     status,
                     exit_price,
                     return_pct,
                     highest_target_hit,
-                    float(pnl_usd) if pnl_usd is not None else None,
-                    (
-                        float(position_size_usd)
-                        if position_size_usd is not None
-                        else None
-                    ),
-                    float(fees_usd) if fees_usd is not None else None,
+                    float(pnl_usd),
+                    position_size_usd,
                     record_id,
                 ))
 
@@ -314,19 +308,15 @@ def update_signal_outcome(
             "REPORTING DB: outcome updated",
             record_id,
             status,
-            "highest target:",
-            highest_target_hit,
-            "return %:",
-            round(return_pct, 4),
-            "simulated P/L:",
-            pnl_usd,
+            "leverage:", SIMULATED_LEVERAGE,
+            "return %:", round(return_pct, 4),
+            "simulated gross P/L:", round(float(pnl_usd), 2),
         )
         return True
 
     except Exception as exc:
         print("REPORTING DB OUTCOME ERROR:", repr(exc))
         return False
-
 
 def send_daily_report(audience, report_date=None):
     if audience not in ("free", "vip"):
@@ -362,7 +352,7 @@ def send_daily_report(audience, report_date=None):
 
                 cur.execute("""
                     SELECT id, coin, direction, entry_price,
-                           exit_price, status, pnl_usd, fees_usd
+                            exit_price, status, pnl_usd
                     FROM signal_records
                     WHERE report_date = %s AND audience = %s
                     ORDER BY sent_at ASC
@@ -385,7 +375,6 @@ def send_daily_report(audience, report_date=None):
         wins = sum(1 for row in rows if float(row[6]) > 0)
         losses = sum(1 for row in rows if float(row[6]) < 0)
         net_pnl = sum(float(row[6]) for row in rows)
-        total_fees = sum(float(row[7] or 0) for row in rows)
 
         title = "FREE DAILY RESULTS" if audience == "free" else "VIP DAILY RESULTS"
 
@@ -396,7 +385,7 @@ def send_daily_report(audience, report_date=None):
         ]
 
         for row in rows:
-            record_id, coin, direction, entry, exit_price, status, pnl, fees = row
+            record_id, coin, direction, entry, exit_price, status, pnl = row
             pnl = float(pnl)
             result_icon = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
 
@@ -413,8 +402,7 @@ def send_daily_report(audience, report_date=None):
             f"Signals closed: <b>{len(rows)}</b>",
             f"Winning signals: <b>{wins}</b>",
             f"Losing signals: <b>{losses}</b>",
-            f"Estimated fees: <b>${total_fees:,.2f}</b>",
-            f"NET SIMULATED P/L: <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
+            f"Gross simulated P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
             "",
             "<i>Simulated signal results; not verified exchange earnings.</i>",
         ])
@@ -5804,16 +5792,18 @@ def monitor_active_trades():
                 else:
                     effective_stop = trade["tp1"]
 
-                if direction == "LONG":
-                    stop_hit = candle_low <= effective_stop
-                    tp1_hit = candle_high >= trade["tp1"]
-                    tp2_hit = candle_high >= trade["tp2"]
-                    tp3_hit = candle_high >= trade["tp3"]
-                else:
-                    stop_hit = candle_high >= effective_stop
-                    tp1_hit = candle_low <= trade["tp1"]
-                    tp2_hit = candle_low <= trade["tp2"]
-                    tp3_hit = candle_low <= trade["tp3"]
+
+if direction == "LONG":
+    stop_hit = previous_target == 0 and candle_low <= trade["stop"]
+    tp1_hit = candle_high >= trade["tp1"]
+    tp2_hit = candle_high >= trade["tp2"]
+    tp3_hit = candle_high >= trade["tp3"]
+else:
+    stop_hit = previous_target == 0 and candle_high >= trade["stop"]
+    tp1_hit = candle_low <= trade["tp1"]
+    tp2_hit = candle_low <= trade["tp2"]
+    tp3_hit = candle_low <= trade["tp3"]
+
 
                 highest_target = previous_target
 
