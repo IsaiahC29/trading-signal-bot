@@ -1293,6 +1293,13 @@ def main_menu():
                 "callback_data": "vip",
             },
         ],
+        
+            [
+                {
+                    "text": "🆓 Register with BYDFi (Free)",
+                    "url": "https://s.bydfi.com/referral/Umn3FDfB",
+                }
+            ],
 
         [
             {
@@ -6888,15 +6895,15 @@ def send_free_info(
 
 def send_vip(chat_id):
     message = (
-        "<b>👑 SIDESHIFT AI VIP</b>\n\n"
-        "Choose how you'd like to get started.\n\n"
         "<b>🆓 Option 1: Free BYDFi Registration</b>\n"
-        "Create a BYDFi account for free using our referral link.\n"
-        "Registration alone does not unlock VIP access.\n\n"
+        "Register using our referral link, then submit your BYDFi UID for review. "
+        "Once your registration is verified and approved by our team, "
+        "you'll receive free VIP access. 👑\n\n"
         "<b>👑 Option 2: VIP Access — $50 One-Time Payment</b>\n"
         "Choose a payment method, submit your receipt, "
         "and receive your VIP access link once your payment "
         "has been verified."
+
     )
 
     keyboard = [
