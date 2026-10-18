@@ -7297,6 +7297,16 @@ def telegram_webhook():
                 return jsonify({"ok": True})
 
             if callback_data == "vip_pay_btc":
+                if not user_id or not begin_vip_receipt_submission(
+                    user_id, username, full_name, "btc"
+                ):
+                    send_telegram(
+                        "Sorry, we couldn't start your payment submission. Please try again later.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+
                 send_telegram(
                     "<b>₿ BITCOIN — $50 VIP</b>\n\n"
                     "Send the equivalent of $50 USD in BTC to:\n"
@@ -7317,6 +7327,16 @@ def telegram_webhook():
                 return jsonify({"ok": True})
 
             if callback_data == "vip_pay_eth":
+                if not user_id or not begin_vip_receipt_submission(
+                    user_id, username, full_name, "eth"
+                ):
+                    send_telegram(
+                        "Sorry, we couldn't start your payment submission. Please try again later.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+
                 send_telegram(
                     "<b>◆ ETHEREUM (ERC-20) — $50 VIP</b>\n\n"
                     "Send the equivalent of $50 USD in ETH to:\n"
