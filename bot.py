@@ -7139,7 +7139,18 @@ def telegram_webhook():
                             f"Caption/reference: {caption or 'Not provided'}\n\n"
                             "Verify the payment independently before approving.",
                             VIP_OWNER_TELEGRAM_ID,
+                            [[
+                                {
+                                    "text": "✅ Approve",
+                                    "callback_data": f"vip_approve_{submission_id}",
+                                },
+                                {
+                                    "text": "❌ Reject",
+                                    "callback_data": f"vip_reject_{submission_id}",
+                                },
+                            ]],
                         )
+
 
                         requests.post(
                             f"{TELEGRAM_API}/sendPhoto",
