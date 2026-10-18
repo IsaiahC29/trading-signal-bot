@@ -7196,6 +7196,89 @@ def telegram_webhook():
 
                 return jsonify({"ok": True})
 
+            if text and message.get("chat", {}).get("type") == "private":
+                sender = message.get("from", {})
+                user_id = sender.get("id")
+
+                if user_id and not text.startswith("/"):
+                    try:
+                        if not VIP_OWNER_TELEGRAM_ID:
+                            send_telegram(
+                                "UID submissions are temporarily unavailable. Please try again later.",
+                                chat_id,
+                            )
+                            return jsonify({"ok": True})
+
+                        if len(text) > 100 or len(text) < 1:
+                            send_telegram(
+                                "That UID doesn't look valid. Please send your BYDFi UID as text.",
+                                chat_id,
+                            )
+                            return jsonify({"ok": True})
+
+                        with psycopg.connect(
+                            DATABASE_URL, connect_timeout=10
+                        ) as conn:
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    UPDATE vip_registration_submissions
+                                    SET bydfi_uid = %s,
+                                        status = 'pending_review'
+                                    WHERE id = (
+                                        SELECT id
+                                        FROM vip_registration_submissions
+                                        WHERE telegram_user_id = %s
+                                          AND status = 'awaiting_uid'
+                                        ORDER BY created_at DESC
+                                        LIMIT 1
+                                    )
+                                    RETURNING id, telegram_user_id, username,
+                                              full_name, bydfi_uid
+                                """, (text, user_id))
+                                submission = cur.fetchone()
+                            conn.commit()
+
+                        if submission:
+                            submission_id, telegram_id, username, full_name, bydfi_uid = submission
+
+                            send_telegram(
+                                "✅ Your BYDFi UID has been submitted for manual review. "
+                                "We'll notify you after our team reviews your registration.",
+                                chat_id,
+                            )
+
+                            send_telegram(
+                                "<b>🆓 FREE VIP REGISTRATION — REVIEW REQUIRED</b>\n\n"
+                                f"Submission: #{submission_id}\n"
+                                f"Telegram ID: <code>{telegram_id}</code>\n"
+                                f"Username: @{username or 'none'}\n"
+                                f"Name: {full_name or 'Not provided'}\n"
+                                f"BYDFi UID: <code>{bydfi_uid}</code>\n\n"
+                                "Verify the referral registration independently before approving.",
+                                VIP_OWNER_TELEGRAM_ID,
+                                [[
+                                    {
+                                        "text": "✅ Approve",
+                                        "callback_data": f"vip_free_approve_{submission_id}",
+                                    },
+                                    {
+                                        "text": "❌ Reject",
+                                        "callback_data": f"vip_free_reject_{submission_id}",
+                                    },
+                                ]],
+                            )
+
+                            return jsonify({"ok": True})
+
+                    except Exception as exc:
+                        print("BYDFI UID SUBMISSION ERROR:", repr(exc))
+                        send_telegram(
+                            "Sorry, there was an error submitting your UID. Please try again later.",
+                            chat_id,
+                        )
+                        return jsonify({"ok": True})
+
+
             if text.startswith(
                 "/start"
             ):
