@@ -7109,9 +7109,13 @@ def telegram_webhook():
 
                     submission_id, payment_method = submission
 
+                    
                     send_telegram(
-                        f"Receipt received for submission #{submission_id}. "
-                        "It will be reviewed manually. This is not payment approval.",
+                        "<b>✅ Receipt Received!</b>\n\n"
+                        "Thank you! Your payment receipt has been "
+                        "submitted for verification.\n\n"
+                        "Once your payment is confirmed, we'll send "
+                        "you your SideShift AI VIP access link. 👑",
                         chat_id,
                     )
 
