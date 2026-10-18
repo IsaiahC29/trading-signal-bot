@@ -7258,7 +7258,16 @@ def telegram_webhook():
             if callback_data == "vip":
                 send_vip(chat_id)
                 return jsonify({"ok": True})
-
+            callback_user = callback.get("from", {})
+            user_id = callback_user.get("id")
+            username = callback_user.get("username", "")
+            full_name = " ".join(
+                part for part in [
+                    callback_user.get("first_name", ""),
+                    callback_user.get("last_name", ""),
+                ] if part
+            )
+            
             if callback_data == "vip_pay_cashapp":
                 send_telegram(
                     "<b>💵 CASH APP — $50 VIP</b>\n\n"
