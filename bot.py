@@ -7403,6 +7403,159 @@ def telegram_webhook():
                 ] if part
             )
             
+            if (
+                callback_data.startswith("vip_approve_")
+                or callback_data.startswith("vip_reject_")
+            ):
+                if (
+                    not VIP_OWNER_TELEGRAM_ID
+                    or str(user_id) != str(VIP_OWNER_TELEGRAM_ID)
+                ):
+                    send_telegram(
+                        "⛔ You are not authorized to review payments.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                try:
+                    submission_id = int(callback_data.rsplit("_", 1)[1])
+                except (ValueError, IndexError):
+                    send_telegram("Invalid payment submission.", chat_id)
+                    return jsonify({"ok": True})
+
+                if callback_data.startswith("vip_reject_"):
+                    with psycopg.connect(
+                        DATABASE_URL, connect_timeout=10
+                    ) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE vip_payment_submissions
+                                SET status = 'rejected',
+                                    reviewed_at = NOW(),
+                                    reviewed_by = %s
+                                WHERE id = %s
+                                  AND status = 'pending_review'
+                                RETURNING telegram_user_id
+                            """, (user_id, submission_id))
+                            reviewed = cur.fetchone()
+                        conn.commit()
+
+                    if not reviewed:
+                        send_telegram(
+                            "This submission is no longer pending review.",
+                            chat_id,
+                        )
+                        return jsonify({"ok": True})
+
+                    send_telegram(
+                        f"❌ Submission #{submission_id} was rejected.",
+                        chat_id,
+                    )
+                    send_telegram(
+                        "Your VIP payment submission could not be approved. "
+                        "Please contact support if you believe this is an error.",
+                        reviewed[0],
+                    )
+                    return jsonify({"ok": True})
+
+                if not VIP_SIGNAL_CHAT_ID:
+                    send_telegram(
+                        "VIP channel is not configured. No access was granted.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                with psycopg.connect(
+                    DATABASE_URL, connect_timeout=10
+                ) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            SELECT telegram_user_id
+                            FROM vip_payment_submissions
+                            WHERE id = %s
+                              AND status = 'pending_review'
+                        """, (submission_id,))
+                        pending = cur.fetchone()
+
+                if not pending:
+                    send_telegram(
+                        "This submission is not pending review.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                invite_response = requests.post(
+                    f"{TELEGRAM_API}/createChatInviteLink",
+                    json={
+                        "chat_id": VIP_SIGNAL_CHAT_ID,
+                        "member_limit": 1,
+                    },
+                    timeout=15,
+                )
+                invite_data = invite_response.json()
+
+                if (
+                    not invite_response.ok
+                    or not invite_data.get("ok")
+                    or not invite_data.get("result", {}).get("invite_link")
+                ):
+                    print("VIP INVITE ERROR:", invite_data)
+                    send_telegram(
+                        "Could not create the VIP invite. No access link was sent.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                invite_link = invite_data["result"]["invite_link"]
+
+                with psycopg.connect(
+                    DATABASE_URL, connect_timeout=10
+                ) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            UPDATE vip_payment_submissions
+                            SET status = 'approved',
+                                reviewed_at = NOW(),
+                                reviewed_by = %s
+                            WHERE id = %s
+                              AND status = 'pending_review'
+                            RETURNING telegram_user_id
+                        """, (user_id, submission_id))
+                        approved = cur.fetchone()
+                    conn.commit()
+
+                if not approved:
+                    requests.post(
+                        f"{TELEGRAM_API}/revokeChatInviteLink",
+                        json={
+                            "chat_id": VIP_SIGNAL_CHAT_ID,
+                            "invite_link": invite_link,
+                        },
+                        timeout=15,
+                    )
+                    send_telegram(
+                        "This submission was already reviewed. No access was granted.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                send_telegram(
+                    "<b>👑 Your SideShift AI VIP access is ready!</b>\n\n"
+                    "Your payment has been verified and approved. "
+                    "Use your personal invite link below to join the VIP channel.",
+                    approved[0],
+                    [[{
+                        "text": "👑 Join SideShift AI VIP",
+                        "url": invite_link,
+                    }]],
+                )
+                send_telegram(
+                    f"✅ Submission #{submission_id} approved. "
+                    "A personal VIP invite was sent to the customer.",
+                    chat_id,
+                )
+                return jsonify({"ok": True})
+
             if callback_data == "vip_pay_cashapp":
                 if not user_id or not begin_vip_receipt_submission(
                     user_id, username, full_name, "cashapp"
