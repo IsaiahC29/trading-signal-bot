@@ -7357,6 +7357,18 @@ def telegram_webhook():
                 )
                 return jsonify({"ok": True})
 
+            if callback_data == "vip_submit_receipt":
+                send_telegram(
+                    "<b>📸 Submit your payment receipt</b>\n\n"
+                    "Please send a screenshot of your payment "
+                    "directly in this private chat. Include the "
+                    "transaction reference if available.\n\n"
+                    "Your receipt will be reviewed manually. "
+                    "Sending a screenshot does not guarantee "
+                    "VIP access.",
+                    chat_id,
+                )
+                return jsonify({"ok": True})
 
         return jsonify({
             "ok": True
