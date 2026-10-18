@@ -6847,32 +6847,50 @@ def send_free_info(
 # VIP
 # ============================================================
 
-def send_vip(
-    chat_id
-):
 
-    return send_telegram(
-        (
-            "<b>👑 SIDESHIFT AI VIP</b>\n\n"
-
-            f"Maximum "
-            f"{MAX_VIP_SIGNALS_PER_DAY} "
-            "signals per day.\n\n"
-
-            "VIP receives the broader "
-            "high-confluence signal pool.\n\n"
-
-            "The number is a maximum, "
-            "not a forced daily quota.\n\n"
-
-            "The engine can send fewer "
-            "signals when market conditions "
-            "do not meet the required filters."
-        ),
-        chat_id,
-        main_menu(),
+def send_vip(chat_id):
+    message = (
+        "<b>👑 SIDESHIFT AI VIP</b>\n\n"
+        f"Up to {MAX_VIP_SIGNALS_PER_DAY} qualifying signals per day.\n"
+        "Signals depend on market conditions; the limit is not a quota.\n\n"
+        "<b>VIP Access — $50 one-time payment</b>\n"
+        "Choose your preferred payment method below.\n\n"
+        "After paying, submit your receipt privately for review. "
+        "VIP access is granted only after payment is verified and approved."
     )
 
+    keyboard = [
+        [
+            {
+                "text": "💵 Pay with Cash App",
+                "callback_data": "vip_pay_cashapp",
+            }
+        ],
+        [
+            {
+                "text": "₿ Pay with Bitcoin (BTC)",
+                "callback_data": "vip_pay_btc",
+            }
+        ],
+        [
+            {
+                "text": "◆ Pay with Ethereum (ERC-20)",
+                "callback_data": "vip_pay_eth",
+            }
+        ],
+        [
+            {
+                "text": "⬅️ Main Menu",
+                "callback_data": "main_menu",
+            }
+        ],
+    ]
+
+    return send_telegram(
+        message,
+        chat_id,
+        keyboard,
+    )
 
 # ============================================================
 # MANUAL SCAN
