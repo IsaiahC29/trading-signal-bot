@@ -1218,6 +1218,35 @@ def send_telegram(
         return False
 
 
+def begin_vip_receipt_submission(user_id, username, full_name, payment_method):
+    if not DATABASE_URL:
+        print("VIP PAYMENT ERROR: DATABASE_URL is not configured.")
+        return False
+
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE vip_payment_submissions
+                    SET status = 'cancelled'
+                    WHERE telegram_user_id = %s
+                      AND status = 'awaiting_receipt'
+                """, (user_id,))
+
+                cur.execute("""
+                    INSERT INTO vip_payment_submissions
+                        (telegram_user_id, username, full_name, payment_method, status)
+                    VALUES (%s, %s, %s, %s, 'awaiting_receipt')
+                """, (user_id, username, full_name, payment_method))
+
+            conn.commit()
+
+        return True
+
+    except Exception as exc:
+        print("VIP PAYMENT DB ERROR:", repr(exc))
+        return False
+
 def answer_callback(
     callback_id
 ):
