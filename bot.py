@@ -137,8 +137,6 @@ def init_reporting_db():
                     )
                 """)
 
-            conn.commit()
-
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS vip_registration_submissions (
                         id BIGSERIAL PRIMARY KEY,
