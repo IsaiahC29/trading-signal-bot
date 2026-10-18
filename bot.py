@@ -150,7 +150,9 @@ def init_reporting_db():
                         reviewed_by BIGINT
                     )
                 """)
-
+                
+            conn.commit()
+            
         print("REPORTING DB: signal_records table is ready.")
         return True
 
