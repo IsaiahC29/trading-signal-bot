@@ -7417,10 +7417,71 @@ def telegram_webhook():
                 )
                 return jsonify({"ok": True})
 
+            
             if callback_data == "vip":
                 send_vip(chat_id)
                 return jsonify({"ok": True})
+
+            if callback_data == "vip_submit_uid":
+                callback_user = callback.get("from", {})
+                user_id = callback_user.get("id")
+                chat = callback.get("message", {}).get("chat", {})
+
+                if chat.get("type") != "private" or not user_id:
+                    send_telegram(
+                        "Please submit your BYDFi UID through a private chat with the bot.",
+                        chat_id,
+                    )
+                    return jsonify({"ok": True})
+
+                try:
+                    with psycopg.connect(
+                        DATABASE_URL, connect_timeout=10
+                    ) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                INSERT INTO vip_registration_submissions (
+                                    telegram_user_id,
+                                    username,
+                                    full_name,
+                                    bydfi_uid,
+                                    status
+                                )
+                                VALUES (%s, %s, %s, %s, 'awaiting_uid')
+                            """, (
+                                user_id,
+                                callback_user.get("username", ""),
+                                " ".join(
+                                    part for part in [
+                                        callback_user.get("first_name", ""),
+                                        callback_user.get("last_name", ""),
+                                    ] if part
+                                ),
+                                "",
+                            ))
+                        conn.commit()
+
+                    send_telegram(
+                        "<b>📝 Submit Your BYDFi UID</b>\n\n"
+                        "First, make sure you registered using our referral link. "
+                        "Then send your BYDFi UID here as a text message.\n\n"
+                        "Our team will review your registration manually. "
+                        "Your UID alone does not guarantee approval.",
+                        chat_id,
+                    )
+
+                except Exception as exc:
+                    print("BYDFI UID REQUEST ERROR:", repr(exc))
+                    send_telegram(
+                        "Sorry, I couldn't start your UID submission. "
+                        "Please try again later.",
+                        chat_id,
+                    )
+
+                return jsonify({"ok": True})
+
             callback_user = callback.get("from", {})
+
             user_id = callback_user.get("id")
             username = callback_user.get("username", "")
             full_name = " ".join(
