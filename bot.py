@@ -393,7 +393,7 @@ def send_daily_report(audience, report_date=None):
                 f"{result_icon} <b>{html.escape(str(coin))}</b> — {html.escape(str(direction))}",
                 f"Entry: {format_price(entry)} | Exit: {format_price(exit_price)}",
                 f"Outcome: <b>{html.escape(str(status))}</b>",
-                f"Net simulated P/L: <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
+                 f"Gross simulated P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
                 "",
             ])
 
@@ -402,7 +402,7 @@ def send_daily_report(audience, report_date=None):
             f"Signals closed: <b>{len(rows)}</b>",
             f"Winning signals: <b>{wins}</b>",
             f"Losing signals: <b>{losses}</b>",
-            f"Gross simulated P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
+            f"GROSS SIMULATED P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
             "",
             "<i>Simulated signal results; not verified exchange earnings.</i>",
         ])
