@@ -1256,60 +1256,27 @@ def answer_callback(
 # TELEGRAM MENUS
 # ============================================================
 
+
 def main_menu():
-
-    rows = []
-
-    coins = list(
-        COINS.keys()
-    )
-
-    for i in range(
-        0,
-        len(coins),
-        2,
-    ):
-
-        row = []
-
-        for coin in coins[
-            i:i + 2
-        ]:
-
-            row.append({
-                "text": f"📊 {coin}",
-                "callback_data": (
-                    f"scan_{coin}"
-                ),
-            })
-
-        rows.append(row)
-
-    rows.extend([
+    return [
         [
             {
-                "text": "🟢 Free Signals",
-                "callback_data": (
-                    "free_signals"
-                ),
+                "text": "🟢 Free Channel",
+                "callback_data": "free_signals",
             },
             {
-                "text": "👑 VIP",
+                "text": "👑 VIP Channel",
                 "callback_data": "vip",
             },
         ],
         [
             {
                 "text": "🔎 Scan a Coin",
-                "callback_data": (
-                    "scan_menu"
-                ),
+                "callback_data": "scan_menu",
             },
             {
                 "text": "📰 Crypto News",
-                "callback_data": (
-                    "news_all"
-                ),
+                "callback_data": "news_all",
             },
         ],
         [
@@ -1318,9 +1285,7 @@ def main_menu():
                 "callback_data": "help",
             }
         ],
-    ])
-
-    return rows
+    ]
 
 
 def scan_menu():
