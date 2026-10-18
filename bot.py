@@ -57,7 +57,7 @@ app = Flask(__name__)
 # ============================================================
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
-
+VIP_OWNER_TELEGRAM_ID = os.getenv("VIP_OWNER_TELEGRAM_ID", "")
 
 # SIMULATED FUTURES SETTINGS
 SIMULATED_MARGIN_USD = float(os.getenv("SIMULATED_MARGIN_USD", "1000"))
