@@ -5793,17 +5793,17 @@ def monitor_active_trades():
                     effective_stop = trade["tp1"]
 
 
-if direction == "LONG":
-    stop_hit = previous_target == 0 and candle_low <= trade["stop"]
-    tp1_hit = candle_high >= trade["tp1"]
-    tp2_hit = candle_high >= trade["tp2"]
-    tp3_hit = candle_high >= trade["tp3"]
-else:
-    stop_hit = previous_target == 0 and candle_high >= trade["stop"]
-    tp1_hit = candle_low <= trade["tp1"]
-    tp2_hit = candle_low <= trade["tp2"]
-    tp3_hit = candle_low <= trade["tp3"]
 
+                if direction == "LONG":
+                    stop_hit = previous_target == 0 and candle_low <= trade["stop"]
+                    tp1_hit = candle_high >= trade["tp1"]
+                    tp2_hit = candle_high >= trade["tp2"]
+                    tp3_hit = candle_high >= trade["tp3"]
+                else:
+                    stop_hit = previous_target == 0 and candle_high >= trade["stop"]
+                    tp1_hit = candle_low <= trade["tp1"]
+                    tp2_hit = candle_low <= trade["tp2"]
+                    tp3_hit = candle_low <= trade["tp3"]
 
                 highest_target = previous_target
 
