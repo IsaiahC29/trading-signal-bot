@@ -7063,6 +7063,92 @@ def telegram_webhook():
                     "ok": True
                 })
 
+            if message.get("photo"):
+                sender = message.get("from", {})
+                user_id = sender.get("id")
+                photos = message.get("photo", [])
+                photo_file_id = photos[-1].get("file_id") if photos else None
+                caption = (message.get("caption") or "").strip()
+
+                if (
+                    message.get("chat", {}).get("type") != "private"
+                    or not user_id
+                    or not photo_file_id
+                ):
+                    return jsonify({"ok": True})
+
+                try:
+                    with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE vip_payment_submissions
+                                SET status = 'pending_review',
+                                    photo_file_id = %s,
+                                    transaction_reference = %s
+                                WHERE id = (
+                                    SELECT id
+                                    FROM vip_payment_submissions
+                                    WHERE telegram_user_id = %s
+                                      AND status = 'awaiting_receipt'
+                                    ORDER BY created_at DESC
+                                    LIMIT 1
+                                )
+                                RETURNING id, payment_method
+                            """, (photo_file_id, caption, user_id))
+                            submission = cur.fetchone()
+                        conn.commit()
+
+                    if not submission:
+                        send_telegram(
+                            "I couldn't find a pending VIP payment submission. "
+                            "Please select your payment method first, then tap "
+                            "'Submit Payment Receipt' and send the screenshot.",
+                            chat_id,
+                        )
+                        return jsonify({"ok": True})
+
+                    submission_id, payment_method = submission
+
+                    send_telegram(
+                        f"Receipt received for submission #{submission_id}. "
+                        "It will be reviewed manually. This is not payment approval.",
+                        chat_id,
+                    )
+
+                    if VIP_OWNER_TELEGRAM_ID:
+                        send_telegram(
+                            f"<b>VIP PAYMENT RECEIPT — REVIEW REQUIRED</b>\n\n"
+                            f"Submission: #{submission_id}\n"
+                            f"User ID: <code>{user_id}</code>\n"
+                            f"Username: @{sender.get('username', 'none')}\n"
+                            f"Name: {sender.get('first_name', '')} "
+                            f"{sender.get('last_name', '')}\n"
+                            f"Method: {payment_method}\n"
+                            f"Caption/reference: {caption or 'Not provided'}\n\n"
+                            "Verify the payment independently before approving.",
+                            VIP_OWNER_TELEGRAM_ID,
+                        )
+
+                        requests.post(
+                            f"{TELEGRAM_API}/sendPhoto",
+                            json={
+                                "chat_id": VIP_OWNER_TELEGRAM_ID,
+                                "photo": photo_file_id,
+                                "caption": f"Receipt for VIP submission #{submission_id}",
+                            },
+                            timeout=15,
+                        )
+
+                except Exception as exc:
+                    print("VIP RECEIPT ERROR:", repr(exc))
+                    send_telegram(
+                        "Sorry, there was an error processing your receipt. "
+                        "Please try again later.",
+                        chat_id,
+                    )
+
+                return jsonify({"ok": True})
+
             if text.startswith(
                 "/start"
             ):
