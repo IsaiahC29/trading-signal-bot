@@ -686,7 +686,8 @@ APPROVED_ASSETS = (
 
 OKX_PERPETUAL_MARKETS = {}
 OKX_MARKET_DISCOVERY_OK = False
-
+GATEIO_PERPETUAL_MARKETS = {}
+GATEIO_MARKET_DISCOVERY_OK = False
 
 
 def inspect_okx_perpetuals():
@@ -766,8 +767,12 @@ def inspect_okx_perpetuals():
 
 
 
-def inspect_gateio_missing_perpetuals():
-    """Compare approved assets missing on OKX with Gate.io USDT perpetuals."""
+
+def inspect_gateio_perpetuals():
+    """Discover approved Gate.io USDT perpetual contracts."""
+    global GATEIO_PERPETUAL_MARKETS
+    global GATEIO_MARKET_DISCOVERY_OK
+
     try:
         response = requests.get(
             "https://api.gateio.ws/api/v4/futures/usdt/contracts",
@@ -781,67 +786,40 @@ def inspect_gateio_missing_perpetuals():
         if not isinstance(contracts, list):
             raise RuntimeError("Unexpected Gate.io contracts response")
 
-        gateio_assets = set()
-
+        markets = {}
         for contract in contracts:
             if not isinstance(contract, dict):
                 continue
             if contract.get("in_delisting", False):
                 continue
 
-            name = str(contract.get("name", "")).upper()
+            name = str(contract.get("name") or "").upper()
             if name.endswith("_USDT"):
                 base = name[:-5]
-                if base:
-                    gateio_assets.add(base)
+                if base in APPROVED_ASSETS:
+                    markets[base] = name
 
-        missing_from_okx = (
-            set(APPROVED_ASSETS) - set(OKX_PERPETUAL_MARKETS)
-        )
-        covered = sorted(missing_from_okx & gateio_assets)
+        GATEIO_PERPETUAL_MARKETS = markets
+        GATEIO_MARKET_DISCOVERY_OK = True
 
-        for test_asset in ["AIA", "ALICE", "KAS", "PAXG", "VET"]:
-            if test_asset not in covered:
-                continue
-            try:
-                candle_response = requests.get(
-                    "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
-                    params={
-                        "contract": f"{test_asset}_USDT",
-                        "interval": "5m",
-                        "limit": 60,
-                    },
-                    timeout=REQUEST_TIMEOUT,
-                    headers={"Accept": "application/json"},
-                )
-                candle_response.raise_for_status()
-                candles = candle_response.json()
-                print(
-                    
-                    "GATE.IO CANDLE TEST:",
-                    test_asset,
-                    "HTTP:",
-                    candle_response.status_code,
-                    "CANDLES:",
-                    len(candles) if isinstance(candles, list) else "INVALID",
-                    "USABLE:",
-                    isinstance(candles, list) and len(candles) >= 60,
-                )
-            except Exception as candle_exc:
-                print("GATE.IO CANDLE TEST ERROR:", test_asset, repr(candle_exc))
-        print("GATE.IO LIVE USDT PERPETUAL COUNT:", len(gateio_assets))
+        missing_from_okx = set(APPROVED_ASSETS) - set(OKX_PERPETUAL_MARKETS)
+        covered = sorted(missing_from_okx & set(markets))
+
+        print("GATE.IO APPROVED USDT PERPETUALS READY:", len(markets))
         print("OKX-MISSING ASSETS FOUND ON GATE.IO:", len(covered))
         print("GATE.IO ADDITIONAL ASSET SAMPLE:", covered[:100])
         print(
-            "OKX-MISSING ASSETS ALSO NOT FOUND ON GATE.IO:",
-            sorted(missing_from_okx - gateio_assets),
+            "APPROVED ASSETS NOT FOUND ON OKX OR GATE.IO:",
+            sorted(missing_from_okx - set(markets)),
         )
-
-        return covered
+        return True
 
     except Exception as exc:
-        print("GATE.IO CONTRACT DISCOVERY ERROR:", repr(exc))
-        return []
+        GATEIO_PERPETUAL_MARKETS = {}
+        GATEIO_MARKET_DISCOVERY_OK = False
+        print("GATE.IO FUTURES DISCOVERY ERROR:", repr(exc))
+        return False
+
 
 def get_okx_perpetual_universe():
     if not OKX_MARKET_DISCOVERY_OK:
@@ -2039,20 +2017,88 @@ def get_market_candles(coin, timeframe):
             except Exception as exc:
                 print("OKX CANDLE FALLBACK:", coin, repr(exc))
                 
-    # Only allow Binance fallback for assets verified in the OKX
-    # live USDT perpetual universe.
-    if coin not in OKX_PERPETUAL_MARKETS:
+    
+    # Source 2: Gate.io USDT perpetual candles.
+    if GATEIO_MARKET_DISCOVERY_OK and coin in GATEIO_PERPETUAL_MARKETS:
+        gate_interval = {
+            "5m": "5m",
+            "15m": "15m",
+            "30m": "30m",
+            "1h": "1h",
+            "4h": "4h",
+            "1D": "1d",
+        }.get(timeframe)
+
+        if gate_interval:
+            try:
+                gate_response = requests.get(
+                    "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
+                    params={
+                        "contract": GATEIO_PERPETUAL_MARKETS[coin],
+                        "interval": gate_interval,
+                        "limit": 200,
+                    },
+                    timeout=REQUEST_TIMEOUT,
+                    headers={"Accept": "application/json"},
+                )
+                gate_response.raise_for_status()
+                rows = gate_response.json()
+                candles = []
+
+                if isinstance(rows, list):
+                    for row in rows:
+                        if not isinstance(row, (list, tuple)) or len(row) < 6:
+                            continue
+                        try:
+                            candle = {
+                                "timestamp": int(float(row[0])) * 1000,
+                                "open": float(row[5]),
+                                "high": float(row[3]),
+                                "low": float(row[4]),
+                                "close": float(row[2]),
+                                "volume": float(row[1]),
+                            }
+                            if (
+                                candle["open"] > 0
+                                and candle["high"] > 0
+                                and candle["low"] > 0
+                                and candle["close"] > 0
+                                and candle["high"] >= candle["low"]
+                            ):
+                                candles.append(candle)
+                        except (TypeError, ValueError, OverflowError):
+                            continue
+
+                candles.sort(key=lambda item: item["timestamp"])
+
+                if len(candles) >= 60:
+                    print("CANDLE SOURCE: GATE.IO", coin, timeframe)
+                    return candles, "Gate.io USDT Perpetual Candles"
+
+                print(
+                    "GATE.IO CANDLES INSUFFICIENT:",
+                    coin,
+                    timeframe,
+                    len(candles),
+                )
+            except Exception as exc:
+                print("GATE.IO CANDLE FALLBACK:", coin, timeframe, repr(exc))
+
+    # Only allow Binance fallback for assets verified on either exchange.
+    if (
+        coin not in OKX_PERPETUAL_MARKETS
+        and coin not in GATEIO_PERPETUAL_MARKETS
+    ):
         print(
-            "SKIPPING BINANCE FUTURES: NO VERIFIED OKX PERPETUAL",
+            "SKIPPING BINANCE FUTURES: NO VERIFIED USDT PERPETUAL",
             coin,
             timeframe,
         )
-        print(
-            "NO USABLE PERPETUAL CANDLE SOURCE:",
-            coin,
-            timeframe,
-        )
+        print("NO USABLE PERPETUAL CANDLE SOURCE:", coin, timeframe)
         return [], None
+
+    # Source 3: Binance USD-M perpetual candles.
+
         
     # Source 2: Binance USD-M perpetual candles.
     # Binance must independently have this exact futures contract.
@@ -5277,7 +5323,10 @@ def scan_market():
     results = []
 
     
-    scan_coins = sorted(set(APPROVED_ASSETS) & set(OKX_PERPETUAL_MARKETS))
+scan_coins = sorted(
+    set(APPROVED_ASSETS)
+    & (set(OKX_PERPETUAL_MARKETS) | set(GATEIO_PERPETUAL_MARKETS))
+)
 
     original_symbols = {}
     added_coins = []
@@ -7567,7 +7616,7 @@ def start_background_engines():
 # ============================================================
 init_reporting_db()
 inspect_okx_perpetuals()
-inspect_gateio_missing_perpetuals()
+inspect_gateio_perpetuals()
 start_background_engines()
 
 if __name__ == "__main__":
