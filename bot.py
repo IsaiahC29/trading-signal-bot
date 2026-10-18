@@ -139,6 +139,20 @@ def init_reporting_db():
 
             conn.commit()
 
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS vip_registration_submissions (
+                        id BIGSERIAL PRIMARY KEY,
+                        telegram_user_id BIGINT NOT NULL,
+                        username TEXT,
+                        full_name TEXT,
+                        bydfi_uid TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pending_review',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        reviewed_at TIMESTAMPTZ,
+                        reviewed_by BIGINT
+                    )
+                """)
+
         print("REPORTING DB: signal_records table is ready.")
         return True
 
