@@ -5423,30 +5423,69 @@ def reset_signal_day():
             ] = {}
 
 
-def audience_can_send(
-    audience
-):
 
+def audience_can_send(audience):
     reset_signal_day()
 
-    with STATE_LOCK:
+    limit = (
+        MAX_FREE_SIGNALS_PER_DAY
+        if audience == "free"
+        else MAX_VIP_SIGNALS_PER_DAY
+    )
 
-        if audience == "free":
-
-            return (
-                SIGNAL_STATE[
-                    "free_sent_today"
-                ]
-                < MAX_FREE_SIGNALS_PER_DAY
+    if not DATABASE_URL:
+        print(
+            "SIGNAL CAP ERROR: DATABASE_URL missing; "
+            "using in-memory counter."
+        )
+        with STATE_LOCK:
+            count = (
+                SIGNAL_STATE["free_sent_today"]
+                if audience == "free"
+                else SIGNAL_STATE["vip_sent_today"]
             )
+        return count < limit
 
-        return (
-            SIGNAL_STATE[
-                "vip_sent_today"
-            ]
-            < MAX_VIP_SIGNALS_PER_DAY
+    today = datetime.now(
+        ZoneInfo("America/New_York")
+    ).date()
+
+    try:
+        with psycopg.connect(
+            DATABASE_URL,
+            connect_timeout=10,
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM signal_records
+                    WHERE audience = %s
+                      AND report_date = %s
+                    """,
+                    (audience, today),
+                )
+                row = cur.fetchone()
+
+        sent_today = int(row[0]) if row else 0
+
+        print(
+            "PERSISTENT SIGNAL CAP:",
+            audience,
+            sent_today,
+            "/",
+            limit,
         )
 
+        return sent_today < limit
+
+    except Exception as exc:
+        print(
+            "SIGNAL CAP DATABASE ERROR — "
+            "BLOCKING SIGNAL TO PREVENT OVER-SENDING:",
+            repr(exc),
+        )
+        return False
 
 def audience_cooldown(
     coin,
