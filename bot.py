@@ -1317,6 +1317,13 @@ def main_menu():
 
         [
             {
+                "text": "📝 I've Registered — Submit UID",
+                "callback_data": "vip_submit_uid",
+            }
+        ],
+
+        [
+            {
                 "text": "🔎 Scan a Coin",
                 "callback_data": "scan_menu",
             },
