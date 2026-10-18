@@ -1293,13 +1293,6 @@ def main_menu():
                 "callback_data": "vip",
             },
         ],
-        
-            [
-                {
-                    "text": "🆓 Register with BYDFi (Free)",
-                    "url": "https://s.bydfi.com/referral/Umn3FDfB",
-                }
-            ],
 
         [
             {
