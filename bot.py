@@ -122,11 +122,18 @@ def init_reporting_db():
                 """)
 
                 cur.execute("""
-                    CREATE TABLE IF NOT EXISTS daily_report_log (
-                        report_date DATE NOT NULL,
-                        audience TEXT NOT NULL,
-                        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        PRIMARY KEY (report_date, audience)
+                    CREATE TABLE IF NOT EXISTS vip_payment_submissions (
+                        id BIGSERIAL PRIMARY KEY,
+                        telegram_user_id BIGINT NOT NULL,
+                        username TEXT,
+                        full_name TEXT,
+                        payment_method TEXT,
+                        status TEXT NOT NULL DEFAULT 'awaiting_receipt',
+                        photo_file_id TEXT,
+                        transaction_reference TEXT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        reviewed_at TIMESTAMPTZ,
+                        reviewed_by BIGINT
                     )
                 """)
 
