@@ -7444,14 +7444,16 @@ def telegram_webhook():
                 return jsonify({"ok": True})
 
             if callback_data == "vip_submit_receipt":
+                
                 send_telegram(
-                    "<b>📸 Submit your payment receipt</b>\n\n"
+                    "<b>📸 Submit Your Payment Receipt</b>\n\n"
                     "Please send a screenshot of your payment "
                     "directly in this private chat. Include the "
                     "transaction reference if available.\n\n"
-                    "Your receipt will be reviewed manually. "
-                    "Sending a screenshot does not guarantee "
-                    "VIP access.",
+                    "Once your payment is verified, your "
+                    "<b>SideShift AI VIP access will be granted.</b>\n\n"
+                    "We'll review your receipt and send your VIP "
+                    "access link as soon as your payment is confirmed. 👑",
                     chat_id,
                 )
                 return jsonify({"ok": True})
