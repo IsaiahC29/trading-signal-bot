@@ -4397,6 +4397,169 @@ def get_coinglass_derivatives(
     return result
 
 
+# ============================================================
+# GATE.IO PUBLIC PERPETUAL DERIVATIVES FALLBACK
+# ============================================================
+
+GATEIO_DERIVATIVES_CACHE = {}
+GATEIO_DERIVATIVES_CACHE_SECONDS = 60
+GATEIO_TICKERS_CACHE = {"time": 0, "data": {}}
+
+
+def get_gateio_derivatives(coin):
+    """Fetch public Gate.io USDT perpetual derivatives data."""
+    coin = str(coin).upper()
+    contract = f"{coin}_USDT"
+    now = time.time()
+
+    cached = GATEIO_DERIVATIVES_CACHE.get(coin)
+    if cached and now - cached["time"] < GATEIO_DERIVATIVES_CACHE_SECONDS:
+        return cached["data"]
+
+    result = {
+        "available": False,
+        "source": "Gate.io public USDT perpetual futures",
+        "open_interest": None,
+        "funding": None,
+        "liquidations": None,
+        "long_short": None,
+        "category_status": {},
+    }
+
+    # Fetch and cache current funding rates for all contracts.
+    try:
+        if now - GATEIO_TICKERS_CACHE["time"] >= GATEIO_DERIVATIVES_CACHE_SECONDS:
+            response = requests.get(
+                "https://api.gateio.ws/api/v4/futures/usdt/tickers",
+                timeout=REQUEST_TIMEOUT,
+                headers={"Accept": "application/json", "User-Agent": "SideShiftAI/4.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+            if isinstance(payload, list):
+                GATEIO_TICKERS_CACHE["data"] = {
+                    str(item.get("contract", "")).upper(): item
+                    for item in payload
+                    if isinstance(item, dict) and item.get("contract")
+                }
+                GATEIO_TICKERS_CACHE["time"] = now
+
+        ticker = GATEIO_TICKERS_CACHE["data"].get(contract)
+        if ticker:
+            rate = safe_float(ticker.get("funding_rate"))
+            if rate is not None:
+                result["funding"] = {"average": rate, "count": 1}
+    except Exception as exc:
+        print("GATE.IO DERIVATIVES TICKER ERROR:", coin, repr(exc))
+
+    # Fetch recent contract statistics.
+    try:
+        response = requests.get(
+            "https://api.gateio.ws/api/v4/futures/usdt/contract_stats",
+            params={"contract": contract, "interval": "5m", "limit": 13},
+            timeout=REQUEST_TIMEOUT,
+            headers={"Accept": "application/json", "User-Agent": "SideShiftAI/4.0"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        if isinstance(payload, list) and payload:
+            rows = sorted(
+                [
+                    row for row in payload
+                    if isinstance(row, dict) and row.get("time") is not None
+                ],
+                key=lambda row: int(row.get("time", 0)),
+            )
+
+            if rows:
+                latest = rows[-1]
+                latest_time = safe_float(latest.get("time"))
+
+                # Reject stale statistics older than 20 minutes.
+                if latest_time is not None and now - latest_time <= 1200:
+                    oi_latest = safe_float(latest.get("open_interest_usd"))
+                    oi_first = safe_float(rows[0].get("open_interest_usd"))
+                    oi_change = None
+
+                    if oi_latest is not None and oi_first is not None and oi_first > 0:
+                        oi_change = ((oi_latest - oi_first) / oi_first) * 100.0
+
+                    if oi_latest is not None:
+                        result["open_interest"] = {
+                            "open_interest_usd": oi_latest,
+                            "open_interest_change_percent_1h": oi_change,
+                            "observations": len(rows),
+                            "timestamp": int(latest_time),
+                        }
+
+                    long_liq = sum(
+                        max(0.0, safe_float(row.get("long_liq_usd"), 0.0) or 0.0)
+                        for row in rows
+                    )
+                    short_liq = sum(
+                        max(0.0, safe_float(row.get("short_liq_usd"), 0.0) or 0.0)
+                        for row in rows
+                    )
+
+                    if any(
+                        row.get("long_liq_usd") is not None
+                        or row.get("short_liq_usd") is not None
+                        for row in rows
+                    ):
+                        result["liquidations"] = {
+                            "long": long_liq,
+                            "short": short_liq,
+                            "total": long_liq + short_liq,
+                            "timestamp": int(latest_time),
+                        }
+
+                    ratio = safe_float(latest.get("lsr_account"))
+                    if ratio is None:
+                        ratio = safe_float(latest.get("top_lsr_account"))
+
+                    if ratio is not None:
+                        result["long_short"] = {
+                            "ratio": ratio,
+                            "timestamp": int(latest_time),
+                        }
+                else:
+                    print("GATE.IO DERIVATIVES STALE STATS:", coin, latest_time)
+    except Exception as exc:
+        print("GATE.IO DERIVATIVES STATS ERROR:", coin, repr(exc))
+
+    result["category_status"] = {
+        "open_interest": (
+            isinstance(result["open_interest"], dict)
+            and result["open_interest"].get("open_interest_usd") is not None
+        ),
+        "funding": (
+            isinstance(result["funding"], dict)
+            and result["funding"].get("average") is not None
+        ),
+        "liquidations": (
+            isinstance(result["liquidations"], dict)
+            and result["liquidations"].get("total") is not None
+        ),
+        "long_short": (
+            isinstance(result["long_short"], dict)
+            and result["long_short"].get("ratio") is not None
+        ),
+    }
+
+    result["available"] = any(result["category_status"].values())
+    GATEIO_DERIVATIVES_CACHE[coin] = {"time": now, "data": result}
+
+    if coin == "BTC":
+        print(
+            "GATE.IO DERIVATIVES BTC:",
+            result["category_status"],
+            "available=" + str(result["available"]),
+        )
+
+    return result
+
 def analyze_derivatives(
     derivatives,
     price_momentum,
@@ -5020,11 +5183,10 @@ def scan_coin(
 
     if include_derivatives:
 
-        derivatives = (
-            get_coinglass_derivatives(
-                coin
-            )
-        )
+        derivatives = get_coinglass_derivatives(coin)
+
+        if not derivatives.get("available"):
+            derivatives = get_gateio_derivatives(coin)
 
         one_hour = (
             timeframe_results.get(
