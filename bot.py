@@ -4340,7 +4340,7 @@ def get_coinglass_derivatives(
                 ),
         }
 
-       category_status = {
+    category_status = {
         "open_interest": (
             isinstance(result["open_interest"], dict)
             and bool(result["open_interest"])
