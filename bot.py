@@ -2927,9 +2927,301 @@ def detect_smc_structure(candles):
         )
 
     return result
-    
-    return result
 
+
+def evaluate_strategy_combinations(candles, technical):
+    """
+    Analysis-only strategy evaluator.
+
+    Evaluates multiple price-action combinations per coin.
+    Does not authorize or change live trading signals.
+    """
+
+    result = {
+        "enabled": True,
+        "mode": "analysis_only",
+        "candidates": [],
+        "best_candidate": None,
+        "candidate_count": 0,
+        "note": "Candidates require historical outcome validation.",
+    }
+
+    if len(candles) < 40 or not technical.get("valid"):
+        return result
+
+    try:
+        completed = candles[:-1]
+        current_price = float(candles[-1]["close"])
+        atr = float(technical.get("atr") or 0)
+
+        if current_price <= 0 or atr <= 0:
+            return result
+
+        smc = detect_smc_structure(candles)
+        fvg = detect_fair_value_gaps(candles)
+        fib = detect_fibonacci_levels(candles)
+
+        highs, lows = pivot_points(
+            completed[-100:],
+            left=3,
+            right=3,
+        )
+
+        recent_high = highs[-1][1] if highs else None
+        recent_low = lows[-1][1] if lows else None
+
+        # Find a recent opposing candle as a possible
+        # order-block zone. This is a candidate, not proof
+        # that the zone is institutionally significant.
+        recent = completed[-20:]
+        order_block = None
+
+        for candle in reversed(recent[:-1]):
+            candle_open = float(candle["open"])
+            candle_close = float(candle["close"])
+            candle_high = float(candle["high"])
+            candle_low = float(candle["low"])
+
+            if candle_close < candle_open:
+                order_block = {
+                    "type": "Bullish",
+                    "low": candle_low,
+                    "high": candle_high,
+                }
+                break
+
+            if candle_close > candle_open:
+                order_block = {
+                    "type": "Bearish",
+                    "low": candle_low,
+                    "high": candle_high,
+                }
+                break
+
+        candidates = []
+
+        def add_candidate(name, direction, evidence, score):
+            if direction not in ("Bullish", "Bearish"):
+                return
+
+            is_long = direction == "Bullish"
+
+            # Use a conservative ATR-based invalidation
+            # until a tested structure-based stop is available.
+            if is_long:
+                stop = current_price - 1.5 * atr
+                if recent_low is not None and recent_low < current_price:
+                    stop = min(stop, recent_low - 0.15 * atr)
+                risk = current_price - stop
+                targets = [
+                    current_price + risk,
+                    current_price + 2 * risk,
+                    current_price + 3 * risk,
+                ]
+                liquidity_target = (
+                    recent_high
+                    if recent_high is not None
+                    and recent_high > current_price
+                    else None
+                )
+            else:
+                stop = current_price + 1.5 * atr
+                if recent_high is not None and recent_high > current_price:
+                    stop = max(stop, recent_high + 0.15 * atr)
+                risk = stop - current_price
+                targets = [
+                    current_price - risk,
+                    current_price - 2 * risk,
+                    current_price - 3 * risk,
+                ]
+                liquidity_target = (
+                    recent_low
+                    if recent_low is not None
+                    and recent_low < current_price
+                    else None
+                )
+
+            if risk <= 0:
+                return
+
+            candidates.append({
+                "name": name,
+                "direction": direction,
+                "score": min(score, 100),
+                "evidence": list(dict.fromkeys(evidence)),
+                "entry_reference": current_price,
+                "stop_reference": stop,
+                "target_1": targets[0],
+                "target_2": targets[1],
+                "target_3": targets[2],
+                "nearby_liquidity_target": liquidity_target,
+                "risk_distance": risk,
+                "reward_risk": {
+                    "target_1": 1.0,
+                    "target_2": 2.0,
+                    "target_3": 3.0,
+                },
+                "status": "UNVALIDATED_CANDIDATE",
+            })
+
+        sweep = smc.get("liquidity_sweep")
+        choch = smc.get("choch")
+        bos = smc.get("bos")
+
+        # Select recent, unfilled FVG zones.
+        bullish_fvgs = [
+            z for z in fvg["bullish"]
+            if not z["fully_filled"] and z["age"] <= 30
+        ]
+        bearish_fvgs = [
+            z for z in fvg["bearish"]
+            if not z["fully_filled"] and z["age"] <= 30
+        ]
+
+        bullish_fvg_near = any(
+            z["low"] <= current_price + atr
+            and z["high"] >= current_price - atr
+            for z in bullish_fvgs
+        )
+        bearish_fvg_near = any(
+            z["low"] <= current_price + atr
+            and z["high"] >= current_price - atr
+            for z in bearish_fvgs
+        )
+
+        fib_bullish_near = (
+            fib.get("valid")
+            and fib.get("direction") == "Bullish"
+            and fib.get("nearest_level")
+            and fib["nearest_level"].get("distance_pct") is not None
+            and fib["nearest_level"]["distance_pct"] <= 0.75
+        )
+
+        fib_bearish_near = (
+            fib.get("valid")
+            and fib.get("direction") == "Bearish"
+            and fib.get("nearest_level")
+            and fib["nearest_level"].get("distance_pct") is not None
+            and fib["nearest_level"]["distance_pct"] <= 0.75
+        )
+
+        bullish_block_near = (
+            order_block is not None
+            and order_block["type"] == "Bullish"
+            and order_block["low"] <= current_price + atr
+            and order_block["high"] >= current_price - atr
+        )
+
+        bearish_block_near = (
+            order_block is not None
+            and order_block["type"] == "Bearish"
+            and order_block["low"] <= current_price + atr
+            and order_block["high"] >= current_price - atr
+        )
+
+        # Combination A: sweep + CHoCH + price-zone confluence.
+        if sweep == "Bullish" and choch == "Bullish":
+            evidence = ["bullish_sweep", "bullish_choch"]
+            score = 55
+
+            if bullish_fvg_near:
+                evidence.append("near_bullish_fvg")
+                score += 15
+            if bullish_block_near:
+                evidence.append("near_bullish_order_block")
+                score += 15
+            if fib_bullish_near:
+                evidence.append("near_bullish_fibonacci_level")
+                score += 15
+
+            add_candidate(
+                "Sweep + CHoCH reversal",
+                "Bullish",
+                evidence,
+                score,
+            )
+
+        if sweep == "Bearish" and choch == "Bearish":
+            evidence = ["bearish_sweep", "bearish_choch"]
+            score = 55
+
+            if bearish_fvg_near:
+                evidence.append("near_bearish_fvg")
+                score += 15
+            if bearish_block_near:
+                evidence.append("near_bearish_order_block")
+                score += 15
+            if fib_bearish_near:
+                evidence.append("near_bearish_fibonacci_level")
+                score += 15
+
+            add_candidate(
+                "Sweep + CHoCH reversal",
+                "Bearish",
+                evidence,
+                score,
+            )
+
+        # Combination B: BOS continuation + nearby imbalance.
+        if bos == "Bullish" and bullish_fvg_near:
+            add_candidate(
+                "Bullish BOS + FVG",
+                "Bullish",
+                ["bullish_bos", "near_bullish_fvg"],
+                60 + (15 if bullish_block_near else 0)
+                + (10 if fib_bullish_near else 0),
+            )
+
+        if bos == "Bearish" and bearish_fvg_near:
+            add_candidate(
+                "Bearish BOS + FVG",
+                "Bearish",
+                ["bearish_bos", "near_bearish_fvg"],
+                60 + (15 if bearish_block_near else 0)
+                + (10 if fib_bearish_near else 0),
+            )
+
+        # Combination C: zone confluence, even without a
+        # detected sweep. This remains a lower-confidence
+        # candidate and is not a live trade instruction.
+        if bullish_fvg_near and bullish_block_near:
+            add_candidate(
+                "Bullish FVG + order-block confluence",
+                "Bullish",
+                ["near_bullish_fvg", "near_bullish_order_block"],
+                45 + (10 if fib_bullish_near else 0),
+            )
+
+        if bearish_fvg_near and bearish_block_near:
+            add_candidate(
+                "Bearish FVG + order-block confluence",
+                "Bearish",
+                ["near_bearish_fvg", "near_bearish_order_block"],
+                45 + (10 if fib_bearish_near else 0),
+            )
+
+        # A score ranks rule-based evidence only. It is not
+        # a probability of winning and must not be described
+        # as one until calibrated against historical results.
+        candidates.sort(
+            key=lambda item: item["score"],
+            reverse=True,
+        )
+
+        result["candidates"] = candidates
+        result["candidate_count"] = len(candidates)
+        result["best_candidate"] = (
+            candidates[0] if candidates else None
+        )
+        result["fibonacci"] = fib
+        result["structure"] = smc
+        result["order_block_candidate"] = order_block
+
+        return result
+
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        result["error"] = str(exc)
+        return result
 
 def detect_entry_setup(candles, technical):
     """
