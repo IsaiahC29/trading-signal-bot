@@ -5120,7 +5120,8 @@ def build_signal(
     entry_segments=None,
 ):
 
-        if valid_count < 2:
+        
+    if valid_count < 2:
         print(
             "SIGNAL REJECTED:", coin,
             "reason=insufficient_valid_timeframes",
@@ -5160,6 +5161,7 @@ def build_signal(
             "label=", label,
         )
         return None
+
 
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
