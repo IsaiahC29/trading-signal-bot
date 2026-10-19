@@ -3454,7 +3454,18 @@ def detect_entry_setup(candles, technical):
         result["bos"] = smc.get("bos")
         result["choch"] = smc.get("choch")
         result["trigger"] = trigger
-
+        
+        print(
+            "ENTRY TRIGGER CHECK:",
+            "direction=Bullish",
+            "pullback=", pullback,
+            "reclaim=", reclaim,
+            "sweep=", sweep,
+            "bos=", bos,
+            "choch=", bullish_choch,
+            "fvg_confirmation=", bullish_fvg_confirmation,
+            "trigger=", trigger,
+        )
         if pullback and trigger:
 
             result["setup"] = (
