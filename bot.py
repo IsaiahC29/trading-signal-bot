@@ -1366,7 +1366,8 @@ def main_menu():
     ]
 
 
-def scan_menu():
+
+def coin_selection_menu():
     coins = list(COINS.keys())
     keyboard = []
 
@@ -1380,7 +1381,7 @@ def scan_menu():
         ])
 
     keyboard.append([
-        {"text": "📰 News", "callback_data": "news_all"},
+        {"text": "📰 Crypto News", "callback_data": "news_all"},
         {"text": "👑 VIP", "callback_data": "vip"},
     ])
     keyboard.append([
@@ -1389,6 +1390,26 @@ def scan_menu():
 
     return keyboard
 
+
+def scan_menu():
+    return [
+        [
+            {
+                "text": "🔎 Scan Another Coin",
+                "callback_data": "scan_menu",
+            },
+        ],
+        [
+            {
+                "text": "📰 Crypto News",
+                "callback_data": "news_all",
+            },
+            {
+                "text": "⬅️ Main Menu",
+                "callback_data": "main_menu",
+            },
+        ],
+    ]
 
 # ============================================================
 # TECHNICAL MATH
