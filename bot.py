@@ -5704,7 +5704,7 @@ def audience_can_send(audience):
             "BLOCKING SIGNAL TO PREVENT OVER-SENDING:",
             repr(exc),
         )
-        return False
+        return None
 
 def audience_cooldown(
     coin,
@@ -6599,7 +6599,7 @@ def run_signal_engine():
                    coin,
                 )
 
-    if FREE_SIGNAL_CHAT_ID and not audience_can_send("free"):
+    if FREE_SIGNAL_CHAT_ID and audience_can_send("free") is False:
         send_daily_report("free")
 
 
@@ -6683,7 +6683,7 @@ def run_signal_engine():
                     coin,
                 )
 
-    if VIP_SIGNAL_CHAT_ID and not audience_can_send("vip"):
+    if VIP_SIGNAL_CHAT_ID and audience_can_send("vip") is False:
         send_daily_report("vip")
 
 
