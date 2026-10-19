@@ -8561,7 +8561,7 @@ def daily_report_loop():
                     pending_reports = cur.fetchall()
 
             for report_date, audience in pending_reports:
-                                if report_date == today:
+                if report_date == today:
                     continue
 
                 send_daily_report(audience, report_date)
