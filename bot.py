@@ -4738,55 +4738,56 @@ def analyze_derivatives(
                     "score"
                 ] += 1
 
+
     # --------------------------------------------------------
     # LIQUIDATIONS
     # --------------------------------------------------------
+    # Only score liquidations when meaningful relative to open interest.
+    liquidations = derivatives.get("liquidations")
 
-    liquidations = (
-        derivatives.get(
-            "liquidations"
+    if isinstance(liquidations, dict):
+        long_liq = max(
+            0.0,
+            safe_float(liquidations.get("long"), 0.0) or 0.0,
         )
-    )
-
-    if liquidations:
-
-        long_liq = liquidations.get(
-            "long",
-            0,
+        short_liq = max(
+            0.0,
+            safe_float(liquidations.get("short"), 0.0) or 0.0,
         )
+        total = long_liq + short_liq
 
-        short_liq = liquidations.get(
-            "short",
-            0,
-        )
-
-        total = (
-            long_liq
-            + short_liq
+        oi = derivatives.get("open_interest")
+        oi_usd = (
+            safe_float(oi.get("open_interest_usd"))
+            if isinstance(oi, dict)
+            else None
         )
 
-        if total > 0:
+        # Require liquidations to equal at least 0.01% of open interest.
+        meaningful_liquidations = (
+            oi_usd is not None
+            and oi_usd > 0
+            and total / oi_usd >= 0.0001
+        )
 
-            long_ratio = (
-                long_liq
-                / total
-            )
+        if total > 0 and meaningful_liquidations:
+            long_ratio = long_liq / total
 
             if long_ratio >= 0.70:
-
-                result[
-                    "evidence"
-                ].append(
-                    "Heavy long liquidations"
-                )
+                result["evidence"].append("Heavy long liquidations")
+                result["score"] -= 1
 
             elif long_ratio <= 0.30:
+                result["evidence"].append("Heavy short liquidations")
+                result["score"] += 1
 
-                result[
-                    "evidence"
-                ].append(
-                    "Heavy short liquidations"
-                )
+            else:
+                result["evidence"].append("Mixed liquidations")
+
+        elif total > 0:
+            result["warnings"].append(
+                "Liquidations too small relative to open interest to score"
+            )
 
     if result["score"] >= 2:
 
