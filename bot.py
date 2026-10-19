@@ -7815,14 +7815,25 @@ def telegram_webhook():
                     )
                     return jsonify({"ok": True})
 
+               
                 if (
                     not invite_response.ok
                     or not invite_data.get("ok")
                     or not invite_data.get("result", {}).get("invite_link")
                 ):
-                    print("VIP INVITE ERROR:", invite_data)
+                    error_description = invite_data.get(
+                        "description", "No error description returned"
+                    )
+                    error_code = invite_data.get("error_code", "unknown")
+                    print(
+                        "VIP INVITE ERROR:",
+                        "HTTP", invite_response.status_code,
+                        "Telegram code:", error_code,
+                        "Description:", error_description,
+                    )
                     send_telegram(
-                        "Could not create the VIP invite. No access link was sent.",
+                        "Could not create the VIP invite.\n"
+                        f"Telegram error {error_code}: {error_description}",
                         chat_id,
                     )
                     return jsonify({"ok": True})
