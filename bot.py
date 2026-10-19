@@ -1257,6 +1257,7 @@ TIMEFRAMES = {
 TRADINGVIEW_CACHE = {}
 
 COINGLASS_CACHE = {}
+COINGLASS_DIAGNOSTIC_LOGGED = set()
 
 SIGNAL_STATE = {
     "date": None,
@@ -4244,7 +4245,7 @@ def get_coinglass_derivatives(
     if isinstance(
         liquidation_data,
         list,
-    ):
+    ) and liquidation_data:
 
         long_total = 0.0
         short_total = 0.0
@@ -4339,23 +4340,52 @@ def get_coinglass_derivatives(
                 ),
         }
 
-    result["available"] = any(
-        value is not None
-        for value in (
-            result[
-                "open_interest"
-            ],
-            result[
-                "funding"
-            ],
-            result[
-                "liquidations"
-            ],
-            result[
-                "long_short"
-            ],
+       category_status = {
+        "open_interest": (
+            isinstance(result["open_interest"], dict)
+            and bool(result["open_interest"])
+        ),
+        "funding": (
+            isinstance(result["funding"], dict)
+            and result["funding"].get("average") is not None
+        ),
+        "liquidations": (
+            isinstance(result["liquidations"], dict)
+            and result["liquidations"].get("total") is not None
+        ),
+        "long_short": (
+            isinstance(result["long_short"], dict)
+            and any(
+                result["long_short"].get(key) is not None
+                for key in ("long", "short", "ratio")
+            )
+        ),
+    }
+
+    result["available"] = any(category_status.values())
+    result["category_status"] = category_status
+
+    if (
+        coin.upper() == "BTC"
+        and coin.upper() not in COINGLASS_DIAGNOSTIC_LOGGED
+    ):
+        print(
+            "COINGLASS DIAGNOSTICS BTC:",
+            "open_interest=" + (
+                "OK" if category_status["open_interest"] else "MISSING"
+            ),
+            "funding=" + (
+                "OK" if category_status["funding"] else "MISSING"
+            ),
+            "liquidations=" + (
+                "OK" if category_status["liquidations"] else "MISSING"
+            ),
+            "long_short=" + (
+                "OK" if category_status["long_short"] else "MISSING"
+            ),
+            "available=" + str(result["available"]),
         )
-    )
+        COINGLASS_DIAGNOSTIC_LOGGED.add(coin.upper())
 
     COINGLASS_CACHE[
         coin
