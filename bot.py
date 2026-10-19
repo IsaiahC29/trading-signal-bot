@@ -352,6 +352,7 @@ def update_signal_outcome(
         print("REPORTING DB OUTCOME ERROR:", repr(exc))
         return False
 
+
 def send_daily_report(audience, report_date=None):
     if audience not in ("free", "vip"):
         return False
@@ -381,12 +382,15 @@ def send_daily_report(audience, report_date=None):
                 """, (report_date, audience))
 
                 if cur.fetchone():
-                    print("DAILY REPORT ALREADY SENT:", audience, report_date)
+                    print(
+                        "DAILY REPORT ALREADY SENT:",
+                        audience, report_date,
+                    )
                     return False
 
                 cur.execute("""
-                    SELECT id, coin, direction, entry_price,
-                            exit_price, status, pnl_usd
+                    SELECT coin, direction, status, pnl_usd,
+                           highest_target_hit, leverage
                     FROM signal_records
                     WHERE report_date = %s AND audience = %s
                     ORDER BY sent_at ASC
@@ -395,57 +399,137 @@ def send_daily_report(audience, report_date=None):
                 rows = cur.fetchall()
 
         if not rows:
-            print("DAILY REPORT SKIPPED: no signals:", audience, report_date)
+            print(
+                "DAILY REPORT SKIPPED: no signals:",
+                audience, report_date,
+            )
             return False
 
-        # Never publish a final report while results are incomplete.
-        if any(
-            row[5] == "OPEN" or row[6] is None
-            for row in rows
-        ):
-            print("DAILY REPORT WAITING: unresolved signals:", audience, report_date)
-            return False
+        completed = [
+            row for row in rows
+            if row[2] != "OPEN" and row[3] is not None
+        ]
 
-        wins = sum(1 for row in rows if float(row[6]) > 0)
-        losses = sum(1 for row in rows if float(row[6]) < 0)
-        net_pnl = sum(float(row[6]) for row in rows)
+        pending = [
+            row for row in rows
+            if row[2] == "OPEN" or row[3] is None
+        ]
 
-        title = "FREE DAILY RESULTS" if audience == "free" else "VIP DAILY RESULTS"
+        wins = sum(1 for row in completed if float(row[3]) > 0)
+        losses = sum(1 for row in completed if float(row[3]) < 0)
+        net_pnl = sum(float(row[3]) for row in completed)
+        win_rate = (
+            wins / len(completed) * 100
+            if completed else 0.0
+        )
 
-        lines = [
+        title = (
+            "FREE DAILY RESULTS"
+            if audience == "free"
+            else "VIP DAILY RESULTS"
+        )
+
+        report_lines = [
             f"<b>📊 SIDESHIFT AI — {title}</b>",
             f"📅 {report_date.strftime('%b %d, %Y')}",
             "",
         ]
 
-        for row in rows:
-            record_id, coin, direction, entry, exit_price, status, pnl = row
-            pnl = float(pnl)
-            result_icon = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
+        for coin, direction, status, pnl, highest_target, leverage in rows:
+            coin_text = html.escape(str(coin))
+            direction_text = html.escape(str(direction))
+            leverage = int(leverage or 25)
+            highest_target = int(highest_target or 0)
 
-            lines.extend([
-                f"{result_icon} <b>{html.escape(str(coin))}</b> — {html.escape(str(direction))}",
-                f"Entry: {format_price(entry)} | Exit: {format_price(exit_price)}",
-                f"Outcome: <b>{html.escape(str(status))}</b>",
-                 f"Gross simulated P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
+            if status == "OPEN" or pnl is None:
+                if highest_target > 0:
+                    outcome = (
+                        f"⏳ PENDING — TP{highest_target} reached so far"
+                    )
+                else:
+                    outcome = "⏳ PENDING — no target confirmed yet"
+
+                report_lines.extend([
+                    f"⏳ <b>{coin_text}</b> — {direction_text}",
+                    f"Status: {outcome}",
+                    f"Leverage: {leverage}x",
+                    "P/L: Pending",
+                    "",
+                ])
+                continue
+
+            pnl = float(pnl)
+            result_icon = (
+                "🟢" if pnl > 0
+                else "🔴" if pnl < 0
+                else "⚪"
+            )
+
+            status_text = {
+                "TP1": "TP1 HIT",
+                "TP2": "TP2 HIT",
+                "TP3": "TP3 HIT",
+                "SL": "STOP LOSS",
+            }.get(str(status), str(status))
+
+            report_lines.extend([
+                f"{result_icon} <b>{coin_text}</b> — {direction_text}",
+                f"Outcome: <b>{html.escape(status_text)}</b>",
+                f"Leverage: {leverage}x",
+                (
+                    f"Simulated P/L: "
+                    f"<b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>"
+                ),
                 "",
             ])
 
-        lines.extend([
+        report_lines.extend([
             "━━━━━━━━━━━━━━━━━━",
-            f"Signals closed: <b>{len(rows)}</b>",
-            f"Winning signals: <b>{wins}</b>",
-            f"Losing signals: <b>{losses}</b>",
-            f"GROSS SIMULATED P/L ({SIMULATED_LEVERAGE}x): <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
+            f"Signals sent: <b>{len(rows)}</b>",
+            f"Completed: <b>{len(completed)}</b>",
+            f"Pending: <b>{len(pending)}</b>",
+            f"Wins: <b>{wins}</b>",
+            f"Losses: <b>{losses}</b>",
+            f"Win rate: <b>{win_rate:.1f}%</b>",
+            (
+                f"Net daily simulated P/L: "
+                f"<b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>"
+            ),
             "",
-            "<i>Simulated signal results; not verified exchange earnings.</i>",
+            "<i>Simulated results, not verified exchange earnings.</i>",
         ])
 
-        message = "\n".join(lines)
+        # Split the report before Telegram's message-length limit.
+        chunks = []
+        current = []
 
-        if not send_telegram(message, chat_id):
-            print("DAILY REPORT SEND FAILED:", audience, report_date)
-            return False
+        for line in report_lines:
+            candidate = "\n".join(current + [line])
+
+            if len(candidate) > 3200 and current:
+                chunks.append("\n".join(current))
+                current = [line]
+            else:
+                current.append(line)
+
+        if current:
+            chunks.append("\n".join(current))
+
+        for index, message in enumerate(chunks, start=1):
+            if len(chunks) > 1:
+                message = (
+                    f"<b>{html.escape(title)} "
+                    f"({index}/{len(chunks)})</b>\n\n"
+                    + message
+                )
+
+            if not send_telegram(message, chat_id):
+                print(
+                    "DAILY REPORT SEND FAILED:",
+                    audience, report_date,
+                    "part:", index,
+                )
+                return False
 
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
             with conn.cursor() as cur:
@@ -456,12 +540,19 @@ def send_daily_report(audience, report_date=None):
                 """, (report_date, audience))
             conn.commit()
 
-        print("DAILY REPORT SENT:", audience, report_date, "net P/L:", net_pnl)
+        print(
+            "DAILY REPORT SENT:",
+            audience, report_date,
+            "completed:", len(completed),
+            "pending:", len(pending),
+            "net P/L:", round(net_pnl, 2),
+        )
         return True
 
     except Exception as exc:
         print("DAILY REPORT ERROR:", audience, repr(exc))
         return False
+
 
 # ============================================================
 # ENVIRONMENT
