@@ -4912,16 +4912,17 @@ def build_entry_segments(
             "direction",
             ""
         )
-
         if direction in (
             "Strong Bullish",
             "Bullish",
+            "Bullish Lean",
         ):
             return "Bullish"
 
         if direction in (
             "Strong Bearish",
             "Bearish",
+            "Bearish Lean",
         ):
             return "Bearish"
 
@@ -5119,25 +5120,45 @@ def build_signal(
     entry_segments=None,
 ):
 
-    if valid_count < 2:
+        if valid_count < 2:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=insufficient_valid_timeframes",
+            "valid_count=", valid_count,
+        )
         return None
 
     if confidence < 45:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=low_confidence",
+            "confidence=", round(confidence, 1),
+        )
         return None
 
     if abs(score) < 2:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=low_score",
+            "score=", round(score, 2),
+        )
         return None
 
-    if label not in (
-        "Bullish",
-        "Bearish",
-    ):
+    if label not in ("Bullish", "Bearish"):
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=non_directional_label",
+            "label=", label,
+        )
         return None
 
-    if structure not in (
-        "Bullish",
-        "Bearish",
-    ):
+    if structure in ("Bullish", "Bearish") and structure != label:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=structure_conflicts_with_signal",
+            "structure=", structure,
+            "label=", label,
+        )
         return None
 
     # ========================================================
