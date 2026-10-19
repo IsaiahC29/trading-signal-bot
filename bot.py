@@ -266,12 +266,19 @@ def update_signal_outcome(
 
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
             with conn.cursor() as cur:
+
                 cur.execute("""
-                    SELECT entry_price, direction, highest_target_hit
+                    SELECT
+                        entry_price,
+                        direction,
+                        highest_target_hit,
+                        leverage,
+                        position_size_usd
                     FROM signal_records
                     WHERE id = %s AND status = 'OPEN'
                     FOR UPDATE
                 """, (record_id,))
+
 
                 record = cur.fetchone()
 
@@ -282,7 +289,34 @@ def update_signal_outcome(
                     )
                     return False
 
-                entry_price, direction, previous_target = record
+                
+                (
+                    entry_price,
+                    direction,
+                    previous_target,
+                    stored_leverage,
+                    stored_position_size,
+                ) = record
+
+                leverage = int(stored_leverage or SIMULATED_LEVERAGE)
+
+                if leverage not in (25, 50, 75, 100):
+                    print(
+                        "REPORTING DB ERROR: invalid stored leverage:",
+                        record_id,
+                        leverage,
+                    )
+                    return False
+
+                if position_size_usd is None:
+                    position_size_usd = (
+                        stored_position_size
+                        if stored_position_size is not None
+                        else SIMULATED_MARGIN_USD
+                    )
+                else:
+                    position_size_usd = float(position_size_usd)
+
                 highest_target_hit = max(
                     int(previous_target or 0),
                     int(highest_target_hit or 0),
@@ -300,19 +334,15 @@ def update_signal_outcome(
                     else (float(entry_price) - exit_price) / float(entry_price)
                 )
 
-                # Gross simulated return on the margin, with leverage.
-                return_pct = price_change * SIMULATED_LEVERAGE * 100
-
-                if position_size_usd is None:
-                    position_size_usd = SIMULATED_MARGIN_USD
-                else:
-                    position_size_usd = float(position_size_usd)
+                
+                # Gross simulated return using this signal's leverage.
+                return_pct = price_change * leverage * 100
 
                 # No simulated trading fees are deducted.
                 fees_usd = 0.0
 
                 if pnl_usd is None:
-                    notional_usd = position_size_usd * SIMULATED_LEVERAGE
+                    notional_usd = position_size_usd * leverage
                     pnl_usd = notional_usd * price_change
 
                 cur.execute("""
@@ -342,7 +372,7 @@ def update_signal_outcome(
             "REPORTING DB: outcome updated",
             record_id,
             status,
-            "leverage:", SIMULATED_LEVERAGE,
+            "leverage:", leverage,
             "return %:", round(return_pct, 4),
             "simulated gross P/L:", round(float(pnl_usd), 2),
         )
@@ -6466,18 +6496,18 @@ def monitor_active_trades():
                 else:
                     effective_stop = trade["tp1"]
 
-
-
+                
                 if direction == "LONG":
-                    stop_hit = previous_target == 0 and candle_low <= trade["stop"]
+                    stop_hit = candle_low <= effective_stop
                     tp1_hit = candle_high >= trade["tp1"]
                     tp2_hit = candle_high >= trade["tp2"]
                     tp3_hit = candle_high >= trade["tp3"]
                 else:
-                    stop_hit = previous_target == 0 and candle_high >= trade["stop"]
+                    stop_hit = candle_high >= effective_stop
                     tp1_hit = candle_low <= trade["tp1"]
                     tp2_hit = candle_low <= trade["tp2"]
                     tp3_hit = candle_low <= trade["tp3"]
+
 
                 highest_target = previous_target
 
