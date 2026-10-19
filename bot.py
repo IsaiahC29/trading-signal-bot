@@ -4792,7 +4792,12 @@ def scan_technical(
                 candles,
                 result,
             )
-
+            result["strategy_analysis"] = (
+                evaluate_strategy_combinations(
+                    candles,
+                    result,
+                )
+            )
         timeframe_results[
             timeframe
         ] = result
