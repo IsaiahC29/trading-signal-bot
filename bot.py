@@ -2530,6 +2530,140 @@ def calculate_structure(
         "resistance": latest_high,
     }
 
+def detect_fibonacci_levels(candles, lookback=100):
+    """
+    Calculate Fibonacci retracement levels from confirmed swing points.
+
+    Uses completed candles only. This reports potential confluence;
+    it does not independently authorize a trading signal.
+    """
+
+    result = {
+        "valid": False,
+        "direction": None,
+        "swing_low": None,
+        "swing_high": None,
+        "levels": {},
+        "golden_pocket": None,
+        "current_price": None,
+        "nearest_level": None,
+        "evidence": [],
+    }
+
+    if len(candles) < 20:
+        return result
+
+    # Exclude the newest candle because it may still be forming.
+    completed = candles[:-1][-lookback:]
+
+    if len(completed) < 20:
+        return result
+
+    highs, lows = pivot_points(
+        completed,
+        left=3,
+        right=3,
+    )
+
+    if not highs or not lows:
+        return result
+
+    # Use the most recently confirmed swing high and swing low.
+    latest_high_index, swing_high = highs[-1]
+    latest_low_index, swing_low = lows[-1]
+
+    if swing_high <= swing_low:
+        return result
+
+    # Determine the direction of the most recent completed swing leg.
+    if latest_low_index < latest_high_index:
+        direction = "Bullish"
+        swing_start = swing_low
+        swing_end = swing_high
+
+    else:
+        direction = "Bearish"
+        swing_start = swing_high
+        swing_end = swing_low
+
+    swing_range = swing_high - swing_low
+
+    if swing_range <= 0:
+        return result
+
+    # Retracement prices measured against the selected swing leg.
+    if direction == "Bullish":
+        levels = {
+            "0.382": swing_high - swing_range * 0.382,
+            "0.500": swing_high - swing_range * 0.500,
+            "0.618": swing_high - swing_range * 0.618,
+            "0.650": swing_high - swing_range * 0.650,
+            "0.705": swing_high - swing_range * 0.705,
+            "0.786": swing_high - swing_range * 0.786,
+        }
+    else:
+        levels = {
+            "0.382": swing_low + swing_range * 0.382,
+            "0.500": swing_low + swing_range * 0.500,
+            "0.618": swing_low + swing_range * 0.618,
+            "0.650": swing_low + swing_range * 0.650,
+            "0.705": swing_low + swing_range * 0.705,
+            "0.786": swing_low + swing_range * 0.786,
+        }
+
+    # The commonly watched golden pocket is the 0.618–0.705 area.
+    golden_values = [
+        levels["0.618"],
+        levels["0.705"],
+    ]
+
+    golden_pocket = {
+        "low": min(golden_values),
+        "high": max(golden_values),
+    }
+
+    current_price = float(completed[-1]["close"])
+
+    nearest_label = min(
+        levels,
+        key=lambda key: abs(current_price - levels[key]),
+    )
+
+    nearest_price = levels[nearest_label]
+
+    result.update({
+        "valid": True,
+        "direction": direction,
+        "swing_low": swing_low,
+        "swing_high": swing_high,
+        "swing_start": swing_start,
+        "swing_end": swing_end,
+        "swing_range": swing_range,
+        "levels": levels,
+        "golden_pocket": golden_pocket,
+        "current_price": current_price,
+        "nearest_level": {
+            "label": nearest_label,
+            "price": nearest_price,
+            "distance_pct": (
+                abs(current_price - nearest_price)
+                / current_price * 100
+                if current_price > 0 else None
+            ),
+        },
+        "price_inside_golden_pocket": (
+            golden_pocket["low"]
+            <= current_price
+            <= golden_pocket["high"]
+        ),
+        "evidence": [
+            "confirmed_swing_points",
+            "fibonacci_retracement_calculated",
+        ],
+    })
+
+    return result
+
 def detect_fair_value_gaps(candles, max_age=100):
     """
     Detect three-candle fair value gaps.
