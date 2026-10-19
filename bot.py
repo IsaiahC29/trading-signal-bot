@@ -1232,6 +1232,45 @@ def send_telegram(
         return False
 
 
+def edit_telegram_message(
+    chat_id,
+    message_id,
+    message,
+    keyboard=None,
+):
+    if not TELEGRAM_API or not chat_id or not message_id:
+        return False
+
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+
+    if keyboard is not None:
+        payload["reply_markup"] = {
+            "inline_keyboard": keyboard
+        }
+
+    try:
+        response = requests.post(
+            f"{TELEGRAM_API}/editMessageText",
+            json=payload,
+            timeout=15,
+        )
+        print(
+            "TELEGRAM EDIT:",
+            response.status_code,
+            response.text[:200],
+        )
+        return response.ok
+
+    except Exception as exc:
+        print("TELEGRAM EDIT ERROR:", repr(exc))
+        return False
+
 def begin_vip_receipt_submission(user_id, username, full_name, payment_method):
     if not DATABASE_URL:
         print("VIP PAYMENT ERROR: DATABASE_URL is not configured.")
