@@ -99,6 +99,7 @@ def init_reporting_db():
                         pnl_usd DOUBLE PRECISION,
                         position_size_usd DOUBLE PRECISION,
                         fees_usd DOUBLE PRECISION,
+                        leverage INTEGER NOT NULL DEFAULT 25,
                         UNIQUE (audience, id)
                     )
                 """)
@@ -120,7 +121,10 @@ def init_reporting_db():
                     ALTER TABLE signal_records
                     ADD COLUMN IF NOT EXISTS fees_usd DOUBLE PRECISION
                 """)
-
+                cur.execute("""
+                    ALTER TABLE signal_records
+                    ADD COLUMN IF NOT EXISTS leverage INTEGER NOT NULL DEFAULT 25
+                """)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS vip_payment_submissions (
                         id BIGSERIAL PRIMARY KEY,
