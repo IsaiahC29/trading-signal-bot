@@ -5717,29 +5717,39 @@ def build_entry_segments(
     # ========================================================
 
     context_direction = None
+    conflicting_daily_context = (
+        daily in ("Bullish", "Bearish")
+        and four_hour in ("Bullish", "Bearish")
+        and daily != four_hour
+    )
 
-    if (
-        daily in (
-            "Bullish",
-            "Bearish",
-        )
-        and four_hour == daily
-    ):
+    if conflicting_daily_context:
+        # When 1D and 4H disagree, do not automatically
+        # let the daily timeframe determine the trade.
+        # Require the 1H, 15M, and 5M biases to align
+        # with 4H before allowing this setup to proceed.
+        if (
+            one_hour != four_hour
+            or fifteen != four_hour
+            or five != four_hour
+        ):
+            print(
+                "ENTRY CONTEXT REJECTED:",
+                "reason=conflicting_daily_4h",
+                "daily=", daily,
+                "4h=", four_hour,
+                "1h=", one_hour,
+                "15m=", fifteen,
+                "5m=", five,
+            )
+            return result
 
+        context_direction = four_hour
+
+    elif daily in ("Bullish", "Bearish"):
         context_direction = daily
 
-    elif daily in (
-        "Bullish",
-        "Bearish",
-    ):
-
-        context_direction = daily
-
-    elif four_hour in (
-        "Bullish",
-        "Bearish",
-    ):
-
+    elif four_hour in ("Bullish", "Bearish"):
         context_direction = four_hour
 
     if not context_direction:
