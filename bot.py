@@ -1367,37 +1367,27 @@ def main_menu():
 
 
 def scan_menu():
+    coins = list(COINS.keys())
+    keyboard = []
 
-    return [
-        [
+    for i in range(0, len(coins), 3):
+        keyboard.append([
             {
-                "text": "🔎 Scan Another Coin",
-                "callback_data": (
-                    "scan_menu"
-                ),
+                "text": f"🪙 {coin}",
+                "callback_data": f"scan_{coin}",
             }
-        ],
-        [
-            {
-                "text": "📰 News",
-                "callback_data": (
-                    "news_all"
-                ),
-            },
-            {
-                "text": "👑 VIP",
-                "callback_data": "vip",
-            },
-        ],
-        [
-            {
-                "text": "⬅️ Main Menu",
-                "callback_data": (
-                    "main_menu"
-                ),
-            }
-        ],
-    ]
+            for coin in coins[i:i + 3]
+        ])
+
+    keyboard.append([
+        {"text": "📰 News", "callback_data": "news_all"},
+        {"text": "👑 VIP", "callback_data": "vip"},
+    ])
+    keyboard.append([
+        {"text": "⬅️ Main Menu", "callback_data": "main_menu"},
+    ])
+
+    return keyboard
 
 
 # ============================================================
@@ -7304,9 +7294,7 @@ def telegram_webhook():
                         return jsonify({"ok": True})
 
 
-            if text.startswith(
-                "/start"
-            ):
+            if text.lower().startswith("/start"):
 
                 send_welcome(
                     chat_id
@@ -7399,24 +7387,30 @@ def telegram_webhook():
                 .get("id")
             )
 
-            if (
-                callback_data
-                == "scan_menu"
-            ):
+                        if callback_data == "scan_menu":
+                message_id = callback.get("message", {}).get("message_id")
 
-                send_telegram(
+                edited = edit_telegram_message(
+                    chat_id,
+                    message_id,
                     (
                         "<b>📊 SELECT A COIN</b>\n\n"
-                        "Choose a cryptocurrency "
-                        "to analyze."
+                        "Choose a cryptocurrency to analyze."
                     ),
-                    chat_id,
-                    main_menu(),
+                    scan_menu(),
                 )
 
-                return jsonify({
-                    "ok": True
-                })
+                if not edited:
+                    send_telegram(
+                        (
+                            "<b>📊 SELECT A COIN</b>\n\n"
+                            "Choose a cryptocurrency to analyze."
+                        ),
+                        chat_id,
+                        scan_menu(),
+                    )
+
+                return jsonify({"ok": True})
 
             if callback_data.startswith(
                 "scan_"
