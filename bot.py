@@ -7418,7 +7418,7 @@ def telegram_webhook():
                         "<b>📊 SELECT A COIN</b>\n\n"
                         "Choose a cryptocurrency to analyze."
                     ),
-                    scan_menu(),
+                    coin_selection_menu(),
                 )
 
                 if not edited:
