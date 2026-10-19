@@ -165,6 +165,7 @@ def init_reporting_db():
         return False
 
 
+
 def save_signal_record(
     audience,
     coin,
@@ -175,16 +176,24 @@ def save_signal_record(
     tp2,
     tp3,
     position_size_usd=None,
-    fees_usd=None,
+    leverage=25,
 ):
     if not DATABASE_URL:
         print("REPORTING DB ERROR: cannot save signal without DATABASE_URL.")
         return False
 
     try:
+        leverage = int(leverage)
+        if leverage not in (25, 50, 75, 100):
+            print("REPORTING DB ERROR: invalid leverage:", leverage)
+            return False
+
         report_date = datetime.now(
             ZoneInfo("America/New_York")
         ).date()
+
+        if position_size_usd is None:
+            position_size_usd = SIMULATED_MARGIN_USD
 
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
             with conn.cursor() as cur:
@@ -194,7 +203,7 @@ def save_signal_record(
                         entry_price, stop_price,
                         tp1_price, tp2_price, tp3_price,
                         report_date, status,
-                        position_size_usd, fees_usd
+                        position_size_usd, leverage
                     )
                     VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s,
@@ -211,8 +220,8 @@ def save_signal_record(
                     float(tp2),
                     float(tp3),
                     report_date,
-                    float(position_size_usd) if position_size_usd is not None else None,
-                    float(fees_usd) if fees_usd is not None else None,
+                    float(position_size_usd),
+                    leverage,
                 ))
                 record_id = cur.fetchone()[0]
 
@@ -224,14 +233,14 @@ def save_signal_record(
             audience,
             coin,
             direction,
+            "leverage:",
+            leverage,
         )
         return record_id
 
     except Exception as exc:
         print("REPORTING DB SAVE ERROR:", repr(exc))
         return False
-
-
 
 def update_signal_outcome(
     record_id,
