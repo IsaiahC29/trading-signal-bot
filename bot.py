@@ -7428,7 +7428,7 @@ def telegram_webhook():
                             "Choose a cryptocurrency to analyze."
                         ),
                         chat_id,
-                        scan_menu(),
+                        coin_selection_menu()
                     )
 
                 return jsonify({"ok": True})
