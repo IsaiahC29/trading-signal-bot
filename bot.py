@@ -6114,13 +6114,14 @@ def build_signal(
                 1,
             ),
 
+
         "quality": (
             "HIGH-CONFLUENCE"
-            if confidence >= 4.5 and agreement >= 0.80
+            if confidence >= 75 and agreement >= 0.80
             else "CONFLUENCE"
-            if confidence >= 3.5 and agreement >= 0.65
-           else "DEVELOPING"
-),
+            if confidence >= 60 and agreement >= 0.65
+            else "DEVELOPING"
+        ),
 
         "entry":
             entry_price,
