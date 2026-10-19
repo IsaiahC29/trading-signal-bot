@@ -5343,6 +5343,18 @@ def scan_coin(
         "price": price,
         "timeframes":
             timeframe_results,
+                    "strategy_analysis": {
+            "by_timeframe": {
+                tf: item.get("strategy_analysis", {})
+                for tf, item in timeframe_results.items()
+            },
+            "candidate_count": sum(
+                item.get("strategy_analysis", {}).get(
+                    "candidate_count", 0
+                )
+                for item in timeframe_results.values()
+            ),
+        },
         "providers":
             providers,
         "valid_count":
