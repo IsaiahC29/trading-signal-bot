@@ -5337,8 +5337,8 @@ def scan_coin(
         ),
     )
 
-    return {         "entry_segments":
-            entry_segments,
+    return {         
+        "entry_segments": entry_segments,
         "coin": coin,
         "price": price,
         "timeframes":
