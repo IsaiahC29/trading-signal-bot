@@ -5167,20 +5167,26 @@ def build_signal(
     # NEW: SEGMENTED ENTRY VALIDATION
     # ========================================================
 
+    
     if not entry_segments:
+        print("SIGNAL REJECTED:", coin, "reason=no_entry_segments")
         return None
 
-    if not entry_segments.get(
-        "valid"
-    ):
-        return None
-
-    if (
-        entry_segments.get(
-            "direction"
+    if not entry_segments.get("valid"):
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=entry_segments_invalid",
+            "details=", entry_segments,
         )
-        != label
-    ):
+        return None
+
+    if entry_segments.get("direction") != label:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=entry_direction_mismatch",
+            "entry_direction=", entry_segments.get("direction"),
+            "signal_label=", label,
+        )
         return None
 
     direction = (
@@ -5189,42 +5195,39 @@ def build_signal(
         else "PUT / SHORT"
     )
 
-    entry_price = (
-        entry_segments.get(
-            "entry_price"
-        )
-    )
+    entry_price = entry_segments.get("entry_price")
+    entry_timeframe = entry_segments.get("entry_timeframe")
 
-    entry_timeframe = (
-        entry_segments.get(
-            "entry_timeframe"
+    if entry_price is None or entry_timeframe is None:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=missing_entry_price_or_timeframe",
+            "entry_price=", entry_price,
+            "entry_timeframe=", entry_timeframe,
         )
-    )
-
-    if (
-        entry_price is None
-        or entry_timeframe is None
-    ):
         return None
 
-    anchor = (
-        timeframe_results.get(
-            entry_timeframe
-        )
-    )
+    anchor = timeframe_results.get(entry_timeframe)
 
     if not anchor:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=missing_entry_timeframe_data",
+            "entry_timeframe=", entry_timeframe,
+        )
         return None
 
-    atr = anchor.get(
-        "atr"
-    )
+    atr = anchor.get("atr")
 
-    if (
-        atr is None
-        or atr <= 0
-    ):
+    if atr is None or atr <= 0:
+        print(
+            "SIGNAL REJECTED:", coin,
+            "reason=invalid_atr",
+            "entry_timeframe=", entry_timeframe,
+            "atr=", atr,
+        )
         return None
+
 
     # ========================================================
     # RISK LEVELS
