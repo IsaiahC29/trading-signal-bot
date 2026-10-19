@@ -6568,39 +6568,40 @@ def run_signal_engine():
     )
 
 
-def signal_loop():
 
+def automatic_signal_window_open():
+    """Allow automatic channel signals from 8 AM to midnight Eastern."""
+    eastern = ZoneInfo("America/New_York")
+    now = datetime.now(eastern)
+    return now.hour >= 8
+
+
+def signal_loop():
     print(
-        "SideShift signal engine started."
+        "SideShift signal engine started. "
+        "Automatic window: 8 AM to midnight Eastern."
     )
 
     while True:
-
         try:
-
-            if (
-                FREE_SIGNAL_CHAT_ID
-                or VIP_SIGNAL_CHAT_ID
-            ):
-
-                run_signal_engine()
-
-            else:
-
+            if not automatic_signal_window_open():
                 print(
-                    "No signal channels configured."
+                    "AUTOMATIC SIGNAL WINDOW CLOSED. "
+                    "Waiting for 8 AM Eastern."
                 )
+                time.sleep(60)
+                continue
+
+            if FREE_SIGNAL_CHAT_ID or VIP_SIGNAL_CHAT_ID:
+                run_signal_engine()
+            else:
+                print("No signal channels configured.")
 
         except Exception as exc:
+            print("SIGNAL LOOP ERROR:", repr(exc))
 
-            print(
-                "SIGNAL LOOP ERROR:",
-                repr(exc),
-            )
+        time.sleep(SIGNAL_SCAN_INTERVAL)
 
-        time.sleep(
-            SIGNAL_SCAN_INTERVAL
-        )
 
 
 # ============================================================
