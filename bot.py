@@ -7387,7 +7387,7 @@ def telegram_webhook():
                 .get("id")
             )
 
-                        if callback_data == "scan_menu":
+            if callback_data == "scan_menu":
                 message_id = callback.get("message", {}).get("message_id")
 
                 edited = edit_telegram_message(
