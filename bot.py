@@ -6599,6 +6599,10 @@ def run_signal_engine():
                    coin,
                 )
 
+    if FREE_SIGNAL_CHAT_ID and not audience_can_send("free"):
+        send_daily_report("free")
+
+
     # --------------------------------------------------------
     # VIP
     # --------------------------------------------------------
@@ -6678,6 +6682,10 @@ def run_signal_engine():
                     "VIP SIGNAL SENT:",
                     coin,
                 )
+
+    if VIP_SIGNAL_CHAT_ID and not audience_can_send("vip"):
+        send_daily_report("vip")
+
 
     print(
         "FREE TODAY:",
@@ -8553,12 +8561,7 @@ def daily_report_loop():
                     pending_reports = cur.fetchall()
 
             for report_date, audience in pending_reports:
-                # Today's report is due at 11:55 PM Eastern.
-                # Older reports are checked as soon as they become eligible.
-                if report_date == today and (
-                    now.hour < 23
-                    or (now.hour == 23 and now.minute < 55)
-                ):
+                                if report_date == today:
                     continue
 
                 send_daily_report(audience, report_date)
