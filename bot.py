@@ -5828,9 +5828,37 @@ def build_entry_segments(
     # 1H is confirmation, but should not completely
     # block a valid lower-timeframe trigger unless
     # it explicitly conflicts with higher-timeframe direction.
+    
     if one_hour_setup in ("Bullish", "Bearish"):
         if one_hour_setup != context_direction:
-            return result
+            reversal_trigger_found = False
+
+            for tf in ("5m", "15m"):
+                item = timeframe_results.get(tf, {})
+                candidate = item.get(
+                    "strategy_analysis", {}
+                ).get("best_candidate")
+
+                if (
+                    isinstance(candidate, dict)
+                    and candidate.get("direction")
+                    == context_direction
+                    and isinstance(
+                        candidate.get("score"), (int, float)
+                    )
+                    and candidate.get("score") >= 70
+                    and item.get("entry_setup", {}).get("trigger")
+                ):
+                    reversal_trigger_found = True
+                    break
+
+            if not reversal_trigger_found:
+                return result
+```
+
+This allows a conflicting 1-hour setup to be overridden only when a matching lower-timeframe strategy candidate scores at least 70 and an entry trigger exists.
+
+**Save and commit this edit. Don't deploy yet.** The next step is to address the final `build_signal()` checks, which can still reject a reversal even after entry selection accepts it.
 
     # A WAIT setup on 1H is allowed to continue ONLY if
     # the lower timeframe produces a confirmed trigger.
