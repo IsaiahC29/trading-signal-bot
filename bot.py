@@ -5590,10 +5590,18 @@ def scan_coin(
     
     # Normalize directional labels for signal qualification
     signal_label = overall_label
+
     if overall_label == "Bullish Lean":
         signal_label = "Bullish"
     elif overall_label == "Bearish Lean":
         signal_label = "Bearish"
+
+    # Allow only a qualified strategy reversal to set direction.
+    if entry_segments.get("qualified_reversal") is True:
+        reversal_direction = entry_segments.get("strategy_direction")
+
+        if reversal_direction in ("Bullish", "Bearish"):
+            signal_label = reversal_direction
 
     print(
         "SIGNAL QUALIFICATION CHECK:",
