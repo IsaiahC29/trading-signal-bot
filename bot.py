@@ -7384,7 +7384,10 @@ def run_signal_engine():
             ):
 
                 break
-
+                
+            if not validate_signal_entry_price(analysis, "free"):
+                continue
+                
             message = (
                 build_signal_message(
                     analysis,
@@ -7469,7 +7472,10 @@ def run_signal_engine():
             ):
 
                 break
-
+                
+            if not validate_signal_entry_price(analysis, "vip"):
+                continue
+                
             message = (
                 build_signal_message(
                     analysis,
