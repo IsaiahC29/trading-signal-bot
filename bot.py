@@ -5820,52 +5820,75 @@ def build_entry_segments(
     # 1D + 4H = CONTEXT
     # ========================================================
 
+        def has_qualified_reversal(item, required_direction=None):
+        analysis = item.get("strategy_analysis", {})
+        candidate = analysis.get("best_candidate")
+
+        if not isinstance(candidate, dict):
+            return False
+
+        direction = candidate.get("direction")
+        score = candidate.get("score", 0)
+        evidence = candidate.get("evidence", [])
+        setup = item.get("entry_setup", {})
+
+        if not isinstance(evidence, list):
+            return False
+
+        if (
+            direction not in ("Bullish", "Bearish")
+            or (
+                required_direction is not None
+                and direction != required_direction
+            )
+            or not isinstance(score, (int, float))
+            or score < 70
+            or not setup.get("trigger")
+            or setup.get("direction") != direction
+            or setup.get("choch") != direction
+        ):
+            return False
+
+        if direction == "Bullish":
+            return (
+                "bullish_sweep" in evidence
+                and "bullish_choch" in evidence
+            )
+
+        return (
+            "bearish_sweep" in evidence
+            and "bearish_choch" in evidence
+        )
+
     context_direction = None
+
     conflicting_daily_context = (
         daily in ("Bullish", "Bearish")
         and four_hour in ("Bullish", "Bearish")
         and daily != four_hour
     )
 
-    
-    if conflicting_daily_context:
-        # Allow a reversal candidate to establish direction,
-        # but require a real lower-timeframe trigger.
-        context_direction = None
-
-    elif daily in ("Bullish", "Bearish"):
-        context_direction = daily
-
-    elif four_hour in ("Bullish", "Bearish"):
-        context_direction = four_hour
+    if not conflicting_daily_context:
+        if daily in ("Bullish", "Bearish"):
+            context_direction = daily
+        elif four_hour in ("Bullish", "Bearish"):
+            context_direction = four_hour
 
     if not context_direction:
-        # A reversal can proceed only if a 5m or 15m
-        # strategy candidate has strong directional evidence.
         for tf in ("5m", "15m"):
             item = timeframe_results.get(tf, {})
-            analysis = item.get("strategy_analysis", {})
-            candidate = analysis.get("best_candidate")
 
-            if not isinstance(candidate, dict):
-                continue
+            if has_qualified_reversal(item):
+                candidate = item.get(
+                    "strategy_analysis", {}
+                ).get("best_candidate")
 
-            candidate_direction = candidate.get("direction")
-            candidate_score = candidate.get("score", 0)
-
-            if (
-                candidate_direction in ("Bullish", "Bearish")
-                and isinstance(candidate_score, (int, float))
-                and candidate_score >= 70
-                and item.get("entry_setup", {}).get("trigger")
-            ):
-                context_direction = candidate_direction
+                context_direction = candidate["direction"]
                 break
 
     if not context_direction:
         return result
-
-
+        
     # ========================================================
     # 1H = SETUP
     # ========================================================
@@ -5888,15 +5911,9 @@ def build_entry_segments(
                     "strategy_analysis", {}
                 ).get("best_candidate")
 
-                if (
-                    isinstance(candidate, dict)
-                    and candidate.get("direction")
-                    == context_direction
-                    and isinstance(
-                        candidate.get("score"), (int, float)
-                    )
-                    and candidate.get("score") >= 70
-                    and item.get("entry_setup", {}).get("trigger")
+                if has_qualified_reversal(
+                    item,
+                    context_direction,
                 ):
                     reversal_trigger_found = True
                     break
