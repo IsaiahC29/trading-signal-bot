@@ -5946,26 +5946,7 @@ def build_entry_segments(
             strategy_direction = strategy_candidate.get("direction")
             strategy_score = strategy_candidate.get("score", 0)
 
-                strategy_evidence = (
-            strategy_candidate.get("evidence", [])
-            if isinstance(strategy_candidate, dict)
-            else []
-        )
-
-        if not isinstance(strategy_evidence, list):
-            strategy_evidence = []
-
-        reversal_evidence = (
-            strategy_direction == "Bullish"
-            and "bullish_sweep" in strategy_evidence
-            and "bullish_choch" in strategy_evidence
-        ) or (
-            strategy_direction == "Bearish"
-            and "bearish_sweep" in strategy_evidence
-            and "bearish_choch" in strategy_evidence
-        )
-
-                strategy_evidence = (
+        strategy_evidence = (
             strategy_candidate.get("evidence", [])
             if isinstance(strategy_candidate, dict)
             else []
