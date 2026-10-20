@@ -5820,7 +5820,7 @@ def build_entry_segments(
     # 1D + 4H = CONTEXT
     # ========================================================
 
-        def has_qualified_reversal(item, required_direction=None):
+    def has_qualified_reversal(item, required_direction=None):
         analysis = item.get("strategy_analysis", {})
         candidate = analysis.get("best_candidate")
 
