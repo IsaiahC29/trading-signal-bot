@@ -5870,10 +5870,28 @@ def build_entry_segments(
                 {},
             )
         )
+        
+        strategy_analysis = item.get(
+            "strategy_analysis",
+            {},
+        )
 
-        if entry_setup.get(
-            "trigger"
+        strategy_candidate = strategy_analysis.get(
+            "best_candidate"
+        )
+
+        strategy_trigger = (
+            isinstance(strategy_candidate, dict)
+            and strategy_candidate.get("direction")
+            == candidate_bias
+            and strategy_candidate.get("score", 0) >= 60
+        )
+
+        if (
+            entry_setup.get("trigger")
+            or strategy_trigger
         ):
+
 
             selected = (
                 timeframe,
