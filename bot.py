@@ -5629,27 +5629,21 @@ def scan_coin(
         )
     )
     
-# The qualified entry setup determines the proposed trade direction.
-# The overall market label remains contextual information.
-signal_label = overall_label
 
-if overall_label == "Bullish Lean":
-    signal_label = "Bullish"
-elif overall_label == "Bearish Lean":
-    signal_label = "Bearish"
+    # The selected entry determines the proposed trade direction.
+    # The overall market label remains contextual information.
+    signal_label = overall_label
 
-if entry_segments.get("valid") is True:
-    entry_direction = entry_segments.get("direction")
+    if overall_label == "Bullish Lean":
+        signal_label = "Bullish"
+    elif overall_label == "Bearish Lean":
+        signal_label = "Bearish"
 
-    if entry_direction in ("Bullish", "Bearish"):
-        signal_label = entry_direction
+    if entry_segments.get("valid") is True:
+        entry_direction = entry_segments.get("direction")
 
-    # Allow only a qualified strategy reversal to set direction.
-    if entry_segments.get("qualified_reversal") is True:
-        reversal_direction = entry_segments.get("strategy_direction")
-
-        if reversal_direction in ("Bullish", "Bearish"):
-            signal_label = reversal_direction
+        if entry_direction in ("Bullish", "Bearish"):
+            signal_label = entry_direction
 
     print(
         "SIGNAL QUALIFICATION CHECK:",
