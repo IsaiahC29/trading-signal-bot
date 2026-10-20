@@ -5858,8 +5858,6 @@ def build_entry_segments(
 
 This allows a conflicting 1-hour setup to be overridden only when a matching lower-timeframe strategy candidate scores at least 70 and an entry trigger exists.
 
-**Save and commit this edit. Don't deploy yet.** The next step is to address the final `build_signal()` checks, which can still reject a reversal even after entry selection accepts it.
-
     # A WAIT setup on 1H is allowed to continue ONLY if
     # the lower timeframe produces a confirmed trigger.
     # The 15M/5M trigger remains the actual entry gate.
