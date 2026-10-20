@@ -1831,11 +1831,23 @@ def calculate_macd(
 # NORMALIZATION
 # ============================================================
 
-def validate_candles(candles):
-    """Keep only structurally valid, usable market candles."""
+
+def validate_candles(candles, timeframe=None):
+    """Validate candles and optionally require completed, fresh data."""
     valid = []
     seen_timestamps = set()
     now_ms = int(time.time() * 1000)
+
+    timeframe_ms = {
+        "5m": 5 * 60 * 1000,
+        "15m": 15 * 60 * 1000,
+        "30m": 30 * 60 * 1000,
+        "1h": 60 * 60 * 1000,
+        "4h": 4 * 60 * 60 * 1000,
+        "1D": 24 * 60 * 60 * 1000,
+    }
+
+    interval_ms = timeframe_ms.get(timeframe)
 
     for candle in candles:
         try:
@@ -1846,13 +1858,7 @@ def validate_candles(candles):
             close = float(candle["close"])
             volume = float(candle["volume"])
 
-            values = (
-                open_price,
-                high,
-                low,
-                close,
-                volume,
-            )
+            values = (open_price, high, low, close, volume)
 
             if not all(math.isfinite(value) for value in values):
                 continue
@@ -1878,22 +1884,38 @@ def validate_candles(candles):
             ):
                 continue
 
-            clean_candle = {
+            # When a timeframe is supplied, exclude unfinished candles.
+            if interval_ms is not None:
+                if timestamp + interval_ms > now_ms:
+                    continue
+
+            valid.append({
                 "timestamp": timestamp,
                 "open": open_price,
                 "high": high,
                 "low": low,
                 "close": close,
                 "volume": volume,
-            }
-
-            valid.append(clean_candle)
+            })
             seen_timestamps.add(timestamp)
 
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
 
     valid.sort(key=lambda candle: candle["timestamp"])
+
+    # Reject the entire dataset if its newest completed candle is stale.
+    if interval_ms is not None and valid:
+        newest_close_time = valid[-1]["timestamp"] + interval_ms
+
+        if now_ms - newest_close_time > 2 * interval_ms:
+            print(
+                "STALE CANDLE DATA:",
+                timeframe,
+                "latest completed candle is too old",
+            )
+            return []
+
     return valid
 
 def normalize_coinbase(
@@ -2263,7 +2285,7 @@ def get_market_candles(coin, timeframe):
                             })
 
                     candles.sort(key=lambda candle: candle["timestamp"])
-                    candles = validate_candles(candles)
+                    candles = validate_candles(candles, timeframe)
                     if len(candles) >= 60:
                         print("CANDLE SOURCE: OKX", coin, timeframe)
                         return candles, "OKX USDT Perpetual Candles"
@@ -2346,7 +2368,7 @@ def get_market_candles(coin, timeframe):
                             continue
 
                 candles.sort(key=lambda item: item["timestamp"])
-                candles = validate_candles(candles)
+                candles = validate_candles(candles, timeframe)
                 if len(candles) >= 60:
                     print("CANDLE SOURCE: GATE.IO", coin, timeframe)
                     return candles, "Gate.io USDT Perpetual Candles"
@@ -2386,7 +2408,7 @@ def get_market_candles(coin, timeframe):
             interval,
             limit=200,
         )
-
+        candles = validate_candles(candles, timeframe)
         if len(candles) >= 60:
             print("CANDLE SOURCE: BINANCE FUTURES", coin, timeframe)
             return candles, "Binance USD-M Perpetual Candles"
