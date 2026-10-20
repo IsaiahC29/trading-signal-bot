@@ -6061,7 +6061,17 @@ def build_signal(
         )
         return None
 
-    if structure in ("Bullish", "Bearish") and structure != label:
+        qualified_reversal = (
+        isinstance(entry_segments, dict)
+        and entry_segments.get("qualified_reversal") is True
+        and entry_segments.get("strategy_direction") == label
+    )
+
+    if (
+        structure in ("Bullish", "Bearish")
+        and structure != label
+        and not qualified_reversal
+    ):
         print(
             "SIGNAL REJECTED:", coin,
             "reason=structure_conflicts_with_signal",
@@ -6069,8 +6079,6 @@ def build_signal(
             "label=", label,
         )
         return None
-
-
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
     # ========================================================
