@@ -5241,38 +5241,6 @@ def scan_coin(
         )
 
     # --------------------------------------------------------
-    # BTC FILTER
-    # --------------------------------------------------------
-
-    btc_warning = None
-
-    if coin != "BTC":
-
-        if (
-            btc_regime == "Bearish"
-            and bullish_ratio >= 0.60
-        ):
-
-            btc_warning = (
-                "Altcoin bullish setup "
-                "against bearish BTC regime"
-            )
-
-            average_score -= 2
-
-        elif (
-            btc_regime == "Bullish"
-            and bearish_ratio >= 0.60
-        ):
-
-            btc_warning = (
-                "Altcoin bearish setup "
-                "against bullish BTC regime"
-            )
-
-            average_score += 2
-
-    # --------------------------------------------------------
     # STRUCTURE
     # --------------------------------------------------------
 
@@ -5457,17 +5425,11 @@ def scan_coin(
             "with derivatives"
         )
 
-    if btc_warning:
-
-        conflicts.append(
-            btc_warning
-        )
-
     # --------------------------------------------------------
     # CONFIDENCE
     # --------------------------------------------------------
 
-        # --------------------------------------------------------
+    # --------------------------------------------------------
     # ANALYSIS STRENGTH
     # --------------------------------------------------------
 
