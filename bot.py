@@ -5778,28 +5778,11 @@ def build_entry_segments(
         and daily != four_hour
     )
 
+    
     if conflicting_daily_context:
-        # When 1D and 4H disagree, do not automatically
-        # let the daily timeframe determine the trade.
-        # Require the 1H, 15M, and 5M biases to align
-        # with 4H before allowing this setup to proceed.
-        if (
-            one_hour != four_hour
-            or fifteen != four_hour
-            or five != four_hour
-        ):
-            print(
-                "ENTRY CONTEXT REJECTED:",
-                "reason=conflicting_daily_4h",
-                "daily=", daily,
-                "4h=", four_hour,
-                "1h=", one_hour,
-                "15m=", fifteen,
-                "5m=", five,
-            )
-            return result
-
-        context_direction = four_hour
+        # Allow a reversal candidate to establish direction,
+        # but require a real lower-timeframe trigger.
+        context_direction = None
 
     elif daily in ("Bullish", "Bearish"):
         context_direction = daily
@@ -5808,7 +5791,31 @@ def build_entry_segments(
         context_direction = four_hour
 
     if not context_direction:
+        # A reversal can proceed only if a 5m or 15m
+        # strategy candidate has strong directional evidence.
+        for tf in ("5m", "15m"):
+            item = timeframe_results.get(tf, {})
+            analysis = item.get("strategy_analysis", {})
+            candidate = analysis.get("best_candidate")
+
+            if not isinstance(candidate, dict):
+                continue
+
+            candidate_direction = candidate.get("direction")
+            candidate_score = candidate.get("score", 0)
+
+            if (
+                candidate_direction in ("Bullish", "Bearish")
+                and isinstance(candidate_score, (int, float))
+                and candidate_score >= 70
+                and item.get("entry_setup", {}).get("trigger")
+            ):
+                context_direction = candidate_direction
+                break
+
+    if not context_direction:
         return result
+
 
     # ========================================================
     # 1H = SETUP
