@@ -5284,38 +5284,41 @@ def scan_coin(
     )
 
 
+
     # --------------------------------------------------------
     # WEIGHTED TIMEFRAME AGREEMENT
     # --------------------------------------------------------
 
     bullish_weight = 0.0
     bearish_weight = 0.0
-    directional_weight = 0.0
+    total_valid_weight = 0.0
 
     for timeframe, result in timeframe_results.items():
         if not result.get("valid"):
             continue
 
         weight = TIMEFRAMES[timeframe]["weight"]
+        total_valid_weight += weight
+
         direction = str(result.get("direction", ""))
 
         if "Bullish" in direction:
             bullish_weight += weight
-            directional_weight += weight
 
         elif "Bearish" in direction:
             bearish_weight += weight
-            directional_weight += weight
 
+    # Measure directional support against ALL valid
+    # timeframes, including neutral/consolidating ones.
     bullish_ratio = (
-        bullish_weight / directional_weight
-        if directional_weight > 0
+        bullish_weight / total_valid_weight
+        if total_valid_weight > 0
         else 0.0
     )
 
     bearish_ratio = (
-        bearish_weight / directional_weight
-        if directional_weight > 0
+        bearish_weight / total_valid_weight
+        if total_valid_weight > 0
         else 0.0
     )
 
@@ -5327,7 +5330,7 @@ def scan_coin(
         "bullish=", round(bullish_ratio, 3),
         "bearish=", round(bearish_ratio, 3),
         "agreement=", round(agreement, 3),
-        "directional_weight=", round(directional_weight, 3),
+        "valid_weight=", round(total_valid_weight, 3),
     )
 
     # --------------------------------------------------------
@@ -5383,46 +5386,35 @@ def scan_coin(
             ] * 1.25
         )
 
+    
     # --------------------------------------------------------
-    # STRUCTURE
+    # WEIGHTED MARKET STRUCTURE
     # --------------------------------------------------------
 
-    structures = [
-        x["structure"]
-        for x in valid_results
-    ]
+    bullish_structure_weight = 0.0
+    bearish_structure_weight = 0.0
 
-    bullish_structure = sum(
-        1
-        for x in structures
-        if "Bullish" in x
-    )
+    for timeframe, result in timeframe_results.items():
+        if not result.get("valid"):
+            continue
 
-    bearish_structure = sum(
-        1
-        for x in structures
-        if "Bearish" in x
-    )
+        weight = TIMEFRAMES[timeframe]["weight"]
+        structure_label = str(result.get("structure", ""))
 
-    if (
-        bullish_structure
-        > bearish_structure
-    ):
+        if "Bullish" in structure_label:
+            bullish_structure_weight += weight
 
+        elif "Bearish" in structure_label:
+            bearish_structure_weight += weight
+
+    if bullish_structure_weight > bearish_structure_weight:
         structure = "Bullish"
 
-    elif (
-        bearish_structure
-        > bullish_structure
-    ):
-
+    elif bearish_structure_weight > bullish_structure_weight:
         structure = "Bearish"
 
     else:
-
-        structure = (
-            "Mixed / Sideways"
-        )
+        structure = "Mixed / Sideways"
 
     # --------------------------------------------------------
     # VOLATILITY
