@@ -5283,43 +5283,51 @@ def scan_coin(
         else 0
     )
 
+
     # --------------------------------------------------------
-    # AGREEMENT
+    # WEIGHTED TIMEFRAME AGREEMENT
     # --------------------------------------------------------
 
-    bullish = sum(
-        1
-        for x in valid_results
-        if "Bullish"
-        in x["direction"]
-    )
+    bullish_weight = 0.0
+    bearish_weight = 0.0
+    directional_weight = 0.0
 
-    bearish = sum(
-        1
-        for x in valid_results
-        if "Bearish"
-        in x["direction"]
-    )
+    for timeframe, result in timeframe_results.items():
+        if not result.get("valid"):
+            continue
 
-    total = len(
-        valid_results
-    )
+        weight = TIMEFRAMES[timeframe]["weight"]
+        direction = str(result.get("direction", ""))
+
+        if "Bullish" in direction:
+            bullish_weight += weight
+            directional_weight += weight
+
+        elif "Bearish" in direction:
+            bearish_weight += weight
+            directional_weight += weight
 
     bullish_ratio = (
-        bullish / total
-        if total
-        else 0
+        bullish_weight / directional_weight
+        if directional_weight > 0
+        else 0.0
     )
 
     bearish_ratio = (
-        bearish / total
-        if total
-        else 0
+        bearish_weight / directional_weight
+        if directional_weight > 0
+        else 0.0
     )
 
-    agreement = max(
-        bullish_ratio,
-        bearish_ratio,
+    agreement = max(bullish_ratio, bearish_ratio)
+
+    print(
+        "WEIGHTED TIMEFRAME AGREEMENT:",
+        coin,
+        "bullish=", round(bullish_ratio, 3),
+        "bearish=", round(bearish_ratio, 3),
+        "agreement=", round(agreement, 3),
+        "directional_weight=", round(directional_weight, 3),
     )
 
     # --------------------------------------------------------
