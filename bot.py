@@ -6053,7 +6053,7 @@ def build_signal(
         )
         return None
 
-    if label not in ("Bullish", "Bearish"):
+        if label not in ("Bullish", "Bearish"):
         print(
             "SIGNAL REJECTED:", coin,
             "reason=non_directional_label",
@@ -6061,7 +6061,7 @@ def build_signal(
         )
         return None
 
-        qualified_reversal = (
+    qualified_reversal = (
         isinstance(entry_segments, dict)
         and entry_segments.get("qualified_reversal") is True
         and entry_segments.get("strategy_direction") == label
