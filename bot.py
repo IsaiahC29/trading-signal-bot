@@ -5880,55 +5880,52 @@ def build_entry_segments(
         ),
     ]
 
+    
     selected = None
 
-    for (
-        timeframe,
-        item,
-    ) in candidates:
-
+    for timeframe, item in candidates:
         candidate_bias = bias(timeframe)
+        entry_setup = item.get("entry_setup", {})
 
-        # Reject an explicit opposite-direction candidate
+        strategy_analysis = item.get("strategy_analysis", {})
+        strategy_candidate = strategy_analysis.get("best_candidate")
+
+        strategy_direction = None
+        strategy_score = 0
+
+        if isinstance(strategy_candidate, dict):
+            strategy_direction = strategy_candidate.get("direction")
+            strategy_score = strategy_candidate.get("score", 0)
+
+        qualified_reversal = (
+            strategy_direction in ("Bullish", "Bearish")
+            and strategy_direction == context_direction
+            and isinstance(strategy_score, (int, float))
+            and strategy_score >= 70
+            and entry_setup.get("trigger")
+        )
+
         if candidate_bias in ("Bullish", "Bearish"):
-            if candidate_bias != context_direction:
+            if candidate_bias != context_direction and not qualified_reversal:
                 continue
 
-        entry_setup = (
-            item.get(
-                "entry_setup",
-                {},
-            )
-        )
-        
-        strategy_analysis = item.get(
-            "strategy_analysis",
-            {},
-        )
-
-        strategy_candidate = strategy_analysis.get(
-            "best_candidate"
-        )
-
         strategy_trigger = (
-            isinstance(strategy_candidate, dict)
-            and strategy_candidate.get("direction")
-            == candidate_bias
-            and strategy_candidate.get("score", 0) >= 60
+            strategy_direction == context_direction
+            and isinstance(strategy_score, (int, float))
+            and strategy_score >= 60
         )
 
-        if (
-            entry_setup.get("trigger")
-            or strategy_trigger
-        ):
-
+        if entry_setup.get("trigger") or strategy_trigger:
+            if candidate_bias != context_direction and not qualified_reversal:
+                continue
 
             selected = (
                 timeframe,
                 item,
                 entry_setup,
+                strategy_candidate,
+                qualified_reversal,
             )
-
             break
 
     
