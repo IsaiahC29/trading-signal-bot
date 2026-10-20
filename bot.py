@@ -6061,7 +6061,7 @@ def build_signal(
         )
         return None
 
-        qualified_reversal = (
+    qualified_reversal = (
         isinstance(entry_segments, dict)
         and entry_segments.get("qualified_reversal") is True
         and entry_segments.get("strategy_direction") == label
