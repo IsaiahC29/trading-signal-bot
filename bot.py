@@ -6043,16 +6043,25 @@ def build_signal(
     )
 
     # Overall structure is context, not an automatic veto.
-    if (
+        if (
         structure in ("Bullish", "Bearish")
         and structure != label
     ):
+        if not qualified_reversal:
+            print(
+                "SIGNAL REJECTED:", coin,
+                "reason=opposing_structure_without_qualified_reversal",
+                "structure=", structure,
+                "entry_direction=", label,
+                "qualified_reversal=", qualified_reversal,
+            )
+            return None
+
         print(
-            "ENTRY CONTEXT CONFLICT:",
+            "QUALIFIED COUNTERTREND REVERSAL:",
             coin,
             "structure=", structure,
             "entry_direction=", label,
-            "qualified_reversal=", qualified_reversal,
         )
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
