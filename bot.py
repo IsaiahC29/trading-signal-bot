@@ -3627,7 +3627,7 @@ def detect_entry_setup(candles, technical):
                 and last_close <= bearish_zone["midpoint"]
             )
 
-                bearish_choch = (
+        bearish_choch = (
             smc.get("choch") == "Bearish"
         )
 
