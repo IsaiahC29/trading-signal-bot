@@ -3627,12 +3627,17 @@ def detect_entry_setup(candles, technical):
                 and last_close <= bearish_zone["midpoint"]
             )
 
+                bearish_choch = (
+            smc.get("choch") == "Bearish"
+        )
+
         trigger = (
-                rejection
-                or sweep
-                or bos
-                or bearish_fvg_confirmation
-            )
+            rejection
+            or sweep
+            or bos
+            or bearish_choch
+            or bearish_fvg_confirmation
+        )
 
         result["direction"] = "Bearish"
         result["pullback"] = pullback
@@ -3650,6 +3655,7 @@ def detect_entry_setup(candles, technical):
             "rejection=", rejection,
             "sweep=", sweep,
             "bos=", bos,
+            "choch=", bearish_choch,
             "fvg_confirmation=", bearish_fvg_confirmation,
             "trigger=", trigger,
         )
