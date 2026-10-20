@@ -6043,7 +6043,7 @@ def build_signal(
     )
 
     # Overall structure is context, not an automatic veto.
-        if (
+    if (
         structure in ("Bullish", "Bearish")
         and structure != label
     ):
