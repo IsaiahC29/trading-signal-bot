@@ -4051,77 +4051,36 @@ def analyze_timeframe(
         else None
     )
 
-    # --------------------------------------------------------
-    # STRUCTURE
-    # --------------------------------------------------------
-
-    structure = calculate_structure(
-        candles
-    )
-
-    score += structure[
-        "score"
-    ]
-
-    evidence.append(
-        structure["label"]
-    )
 
     # --------------------------------------------------------
-    # CLASSIFICATION
+    # WEIGHTED MARKET STRUCTURE
     # --------------------------------------------------------
 
-    if score >= 8:
+    bullish_structure_weight = 0.0
+    bearish_structure_weight = 0.0
 
-        direction = "Strong Bullish"
+    for timeframe, result in timeframe_results.items():
+        if not result.get("valid"):
+            continue
 
-    elif score >= 4:
+        weight = TIMEFRAMES[timeframe]["weight"]
+        structure_label = str(result.get("structure", ""))
 
-        direction = "Bullish"
+        if "Bullish" in structure_label:
+            bullish_structure_weight += weight
 
-    elif score >= 2:
+        elif "Bearish" in structure_label:
+            bearish_structure_weight += weight
 
-        direction = "Bullish Lean"
+    if bullish_structure_weight > bearish_structure_weight:
+        structure = "Bullish"
 
-    elif score <= -8:
-
-        direction = "Strong Bearish"
-
-    elif score <= -4:
-
-        direction = "Bearish"
-
-    elif score <= -2:
-
-        direction = "Bearish Lean"
+    elif bearish_structure_weight > bullish_structure_weight:
+        structure = "Bearish"
 
     else:
+        structure = "Mixed / Sideways"
 
-        direction = "Consolidation"
-
-    # --------------------------------------------------------
-    # VOLUME
-    # --------------------------------------------------------
-
-    if volume_ratio is None:
-
-        volume_label = "Unknown"
-
-    elif volume_ratio >= 1.75:
-
-        volume_label = "Very High"
-
-    elif volume_ratio >= 1.25:
-
-        volume_label = "Above Average"
-
-    elif volume_ratio >= 0.80:
-
-        volume_label = "Normal"
-
-    else:
-
-        volume_label = "Below Average"
 
     # --------------------------------------------------------
     # VOLATILITY
