@@ -3461,7 +3461,48 @@ def detect_entry_setup(candles, technical):
     previous = candles[-2]
 
     last_close = last["close"]
+    
+    # Detect a confirmed reversal against the current technical bias.
+    # Require a directional CHoCH and a candle closing in that direction.
+    reversal_direction = None
 
+    if (
+        bias == "Bearish"
+        and smc.get("choch") == "Bullish"
+        and last["close"] > last["open"]
+    ):
+        reversal_direction = "Bullish"
+
+    elif (
+        bias == "Bullish"
+        and smc.get("choch") == "Bearish"
+        and last["close"] < last["open"]
+    ):
+        reversal_direction = "Bearish"
+
+    if reversal_direction:
+        result.update({
+            "setup": f"{reversal_direction.upper()} REVERSAL TRIGGER",
+            "trigger": True,
+            "direction": reversal_direction,
+            "pullback": False,
+            "entry_reason": (
+                "Confirmed opposing CHoCH with directional candle close"
+            ),
+            "choch": reversal_direction,
+            "liquidity_sweep": smc.get("liquidity_sweep"),
+            "bos": smc.get("bos"),
+        })
+
+        print(
+            "REVERSAL TRIGGER:",
+            reversal_direction,
+            "technical_bias=", bias,
+            "choch=", smc.get("choch"),
+        )
+
+        return result
+        
     min_pullback = max(
         atr * 0.25,
         price * 0.002,
