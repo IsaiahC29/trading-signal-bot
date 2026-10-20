@@ -6608,9 +6608,9 @@ def get_monitor_price(coin):
     try:
         candles, provider = get_market_candles(coin, "5m")
 
-        # Ignore the newest candle because it may still be forming.
-        if candles and len(candles) >= 2:
-            return candles[-2]
+        # The validator already removes unfinished candles.
+        if candles:
+            return candles[-1]
 
     except Exception as exc:
         print("MONITOR PRICE ERROR:", coin, repr(exc))
