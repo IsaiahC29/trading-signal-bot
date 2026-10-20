@@ -1,6 +1,7 @@
 import os
 import html
 import time
+import math
 import threading
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -1830,6 +1831,71 @@ def calculate_macd(
 # NORMALIZATION
 # ============================================================
 
+def validate_candles(candles):
+    """Keep only structurally valid, usable market candles."""
+    valid = []
+    seen_timestamps = set()
+    now_ms = int(time.time() * 1000)
+
+    for candle in candles:
+        try:
+            timestamp = int(candle["timestamp"])
+            open_price = float(candle["open"])
+            high = float(candle["high"])
+            low = float(candle["low"])
+            close = float(candle["close"])
+            volume = float(candle["volume"])
+
+            values = (
+                open_price,
+                high,
+                low,
+                close,
+                volume,
+            )
+
+            if not all(math.isfinite(value) for value in values):
+                continue
+
+            if timestamp <= 0 or timestamp > now_ms + 60_000:
+                continue
+
+            if timestamp in seen_timestamps:
+                continue
+
+            if min(open_price, high, low, close) <= 0:
+                continue
+
+            if volume < 0:
+                continue
+
+            if (
+                high < low
+                or high < open_price
+                or high < close
+                or low > open_price
+                or low > close
+            ):
+                continue
+
+            clean_candle = {
+                "timestamp": timestamp,
+                "open": open_price,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+
+            valid.append(clean_candle)
+            seen_timestamps.add(timestamp)
+
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+
+    valid.sort(key=lambda candle: candle["timestamp"])
+    return valid
+
 def normalize_coinbase(
     rows
 ):
@@ -1871,7 +1937,7 @@ def normalize_coinbase(
         x["timestamp"]
     )
 
-    return candles
+    return validate_candles(candles)
 
 
 def normalize_kraken(
@@ -1919,7 +1985,7 @@ def normalize_kraken(
         x["timestamp"]
     )
 
-    return candles
+    return validate_candles(candles)
 
 
 def normalize_binance(
@@ -1962,7 +2028,7 @@ def normalize_binance(
         x["timestamp"]
     )
 
-    return candles
+    return validate_candles(candles)
 
 
 # ============================================================
@@ -2197,7 +2263,7 @@ def get_market_candles(coin, timeframe):
                             })
 
                     candles.sort(key=lambda candle: candle["timestamp"])
-
+                    candles = validate_candles(candles)
                     if len(candles) >= 60:
                         print("CANDLE SOURCE: OKX", coin, timeframe)
                         return candles, "OKX USDT Perpetual Candles"
@@ -2280,7 +2346,7 @@ def get_market_candles(coin, timeframe):
                             continue
 
                 candles.sort(key=lambda item: item["timestamp"])
-
+                candles = validate_candles(candles)
                 if len(candles) >= 60:
                     print("CANDLE SOURCE: GATE.IO", coin, timeframe)
                     return candles, "Gate.io USDT Perpetual Candles"
