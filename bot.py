@@ -526,7 +526,6 @@ def send_daily_report(audience, report_date=None):
                 f"<b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>"
             ),
             "",
-            "<i>Simulated results, not verified exchange earnings.</i>",
         ])
 
         # Split the report before Telegram's message-length limit.
