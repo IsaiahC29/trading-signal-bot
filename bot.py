@@ -6048,26 +6048,25 @@ def build_signal(
         )
         return None
 
-    qualified_reversal = (
-    isinstance(entry_segments, dict)
-    and entry_segments.get("valid") is True
-    and entry_segments.get("qualified_reversal") is True
-    and entry_segments.get("strategy_direction") == label
-)
-
-# Overall structure is context. A valid lower-timeframe entry
-# may oppose it, but that conflict must be explicitly logged.
-if (
-    structure in ("Bullish", "Bearish")
-    and structure != label
-):
-    print(
-        "ENTRY CONTEXT CONFLICT:",
-        coin,
-        "structure=", structure,
-        "entry_direction=", label,
-        "qualified_reversal=", qualified_reversal,
+        qualified_reversal = (
+        isinstance(entry_segments, dict)
+        and entry_segments.get("valid") is True
+        and entry_segments.get("qualified_reversal") is True
+        and entry_segments.get("strategy_direction") == label
     )
+
+    # Overall structure is context, not an automatic veto.
+    if (
+        structure in ("Bullish", "Bearish")
+        and structure != label
+    ):
+        print(
+            "ENTRY CONTEXT CONFLICT:",
+            coin,
+            "structure=", structure,
+            "entry_direction=", label,
+            "qualified_reversal=", qualified_reversal,
+        )
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
     # ========================================================
