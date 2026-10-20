@@ -5952,11 +5952,23 @@ def build_entry_segments(
         timeframe,
         item,
         entry_setup,
+        strategy_candidate,
+        qualified_reversal,
     ) = selected
 
     result.update({
         "valid": True,
-
+        "strategy_direction": (
+            strategy_candidate.get("direction")
+            if isinstance(strategy_candidate, dict)
+            else None
+        ),
+        "strategy_score": (
+            strategy_candidate.get("score", 0)
+            if isinstance(strategy_candidate, dict)
+            else 0
+        ),
+        "qualified_reversal": qualified_reversal,
         "direction":
             context_direction,
 
