@@ -6767,6 +6767,45 @@ def validate_signal_entry_price(analysis, audience):
         )
         return False
 
+    # Rebase the complete trade plan to the verified live price.
+    # Preserve the original stop distance and 1R / 2R / 3R targets.
+    risk_distance = abs(entry - stop)
+
+    if risk_distance <= 0 or live_price <= 0:
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "invalid live entry or risk distance",
+        )
+        return False
+
+    if is_long:
+        new_entry = live_price
+        new_stop = new_entry - risk_distance
+        new_tp1 = new_entry + risk_distance
+        new_tp2 = new_entry + (risk_distance * 2)
+        new_tp3 = new_entry + (risk_distance * 3)
+    else:
+        new_entry = live_price
+        new_stop = new_entry + risk_distance
+        new_tp1 = new_entry - risk_distance
+        new_tp2 = new_entry - (risk_distance * 2)
+        new_tp3 = new_entry - (risk_distance * 3)
+
+    if min(new_entry, new_stop, new_tp1, new_tp2, new_tp3) <= 0:
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "rebased levels are invalid",
+        )
+        return False
+
+    signal["entry"] = new_entry
+    signal["invalidation"] = new_stop
+    signal["target_1"] = new_tp1
+    signal["target_2"] = new_tp2
+    signal["target_3"] = new_tp3
+
     print(
         "SIGNAL PRICE CHECK PASSED:",
         coin,
