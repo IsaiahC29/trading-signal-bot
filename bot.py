@@ -5854,9 +5854,6 @@ def build_entry_segments(
 
             if not reversal_trigger_found:
                 return result
-```
-
-This allows a conflicting 1-hour setup to be overridden only when a matching lower-timeframe strategy candidate scores at least 70 and an entry trigger exists.
 
     # A WAIT setup on 1H is allowed to continue ONLY if
     # the lower timeframe produces a confirmed trigger.
