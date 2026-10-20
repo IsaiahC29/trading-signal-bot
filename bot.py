@@ -6048,7 +6048,7 @@ def build_signal(
         )
         return None
 
-        qualified_reversal = (
+    qualified_reversal = (
         isinstance(entry_segments, dict)
         and entry_segments.get("valid") is True
         and entry_segments.get("qualified_reversal") is True
