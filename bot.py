@@ -6568,6 +6568,142 @@ def get_monitor_price(coin):
 
     return None
 
+def validate_signal_entry_price(analysis, audience):
+    """
+    Check the current verified USDT perpetual price before publishing.
+    Fail closed if the price cannot be verified or the setup has moved.
+    """
+    coin = analysis.get("coin")
+    signal = analysis.get("signal") or {}
+
+    try:
+        entry = float(signal["entry"])
+        stop = float(signal["invalidation"])
+        tp1 = float(signal["target_1"])
+    except (KeyError, TypeError, ValueError):
+        print("SIGNAL PRICE CHECK REJECTED:", coin, "missing or invalid levels")
+        return False
+
+    if not coin or entry <= 0 or stop <= 0 or tp1 <= 0 or stop == entry:
+        print("SIGNAL PRICE CHECK REJECTED:", coin, "invalid price levels")
+        return False
+
+    direction = str(signal.get("direction", "")).upper()
+    if direction in ("CALL / LONG", "LONG"):
+        is_long = True
+    elif direction in ("PUT / SHORT", "SHORT"):
+        is_long = False
+    else:
+        print("SIGNAL PRICE CHECK REJECTED:", coin, "unknown direction")
+        return False
+
+    live_price = None
+    price_source = None
+
+    # Source 1: OKX live ticker for the verified perpetual contract.
+    if OKX_MARKET_DISCOVERY_OK and coin in OKX_PERPETUAL_MARKETS:
+        try:
+            response = requests.get(
+                "https://www.okx.com/api/v5/market/ticker",
+                params={"instId": OKX_PERPETUAL_MARKETS[coin]},
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": "SideShiftAI/4.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = payload.get("data", [])
+
+            if payload.get("code") == "0" and rows:
+                candidate = float(rows[0].get("last", 0))
+                if candidate > 0:
+                    live_price = candidate
+                    price_source = "OKX"
+
+        except Exception as exc:
+            print("OKX LIVE PRICE FALLBACK:", coin, repr(exc))
+
+    # Source 2: Gate.io live ticker if OKX is unavailable.
+    if (
+        live_price is None
+        and GATEIO_MARKET_DISCOVERY_OK
+        and coin in GATEIO_PERPETUAL_MARKETS
+    ):
+        try:
+            response = requests.get(
+                "https://api.gateio.ws/api/v4/futures/usdt/tickers",
+                params={"contract": GATEIO_PERPETUAL_MARKETS[coin]},
+                timeout=REQUEST_TIMEOUT,
+                headers={"Accept": "application/json"},
+            )
+            response.raise_for_status()
+            rows = response.json()
+
+            if isinstance(rows, list) and rows:
+                candidate = float(rows[0].get("last", 0))
+                if candidate > 0:
+                    live_price = candidate
+                    price_source = "Gate.io"
+
+        except Exception as exc:
+            print("GATE.IO LIVE PRICE ERROR:", coin, repr(exc))
+
+    if live_price is None:
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "no verified live perpetual price",
+        )
+        return False
+
+    # Allow at most 20% of the entry-to-stop distance from the planned entry.
+    # This scales the tolerance to the risk of each setup.
+    risk_distance = abs(entry - stop)
+    max_deviation = risk_distance * 0.20
+    deviation = abs(live_price - entry)
+
+    if deviation > max_deviation:
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "entry moved too far",
+            "entry=", entry,
+            "live=", live_price,
+            "allowed_deviation=", max_deviation,
+            "source=", price_source,
+        )
+        return False
+
+    # Do not publish a setup if its stop or first target has already been crossed.
+    if is_long and (live_price <= stop or live_price >= tp1):
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "long stop/TP1 already crossed",
+            "live=", live_price,
+            "source=", price_source,
+        )
+        return False
+
+    if not is_long and (live_price >= stop or live_price <= tp1):
+        print(
+            "SIGNAL PRICE CHECK REJECTED:",
+            coin,
+            "short stop/TP1 already crossed",
+            "live=", live_price,
+            "source=", price_source,
+        )
+        return False
+
+    print(
+        "SIGNAL PRICE CHECK PASSED:",
+        coin,
+        audience,
+        "entry=", entry,
+        "live=", live_price,
+        "source=", price_source,
+    )
+    return True
+
 def send_trade_update(trade, message):
     sent = False
 
