@@ -6053,7 +6053,7 @@ def build_signal(
         )
         return None
 
-        if label not in ("Bullish", "Bearish"):
+    if label not in ("Bullish", "Bearish"):
         print(
             "SIGNAL REJECTED:", coin,
             "reason=non_directional_label",
