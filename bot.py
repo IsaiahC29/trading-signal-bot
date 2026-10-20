@@ -5629,13 +5629,20 @@ def scan_coin(
         )
     )
     
-    # Normalize directional labels for signal qualification
-    signal_label = overall_label
+# The qualified entry setup determines the proposed trade direction.
+# The overall market label remains contextual information.
+signal_label = overall_label
 
-    if overall_label == "Bullish Lean":
-        signal_label = "Bullish"
-    elif overall_label == "Bearish Lean":
-        signal_label = "Bearish"
+if overall_label == "Bullish Lean":
+    signal_label = "Bullish"
+elif overall_label == "Bearish Lean":
+    signal_label = "Bearish"
+
+if entry_segments.get("valid") is True:
+    entry_direction = entry_segments.get("direction")
+
+    if entry_direction in ("Bullish", "Bearish"):
+        signal_label = entry_direction
 
     # Allow only a qualified strategy reversal to set direction.
     if entry_segments.get("qualified_reversal") is True:
@@ -5759,15 +5766,12 @@ def scan_coin(
 # ============================================================
 # SIGNAL BUILDER
 # ============================================================
-def build_entry_segments(
-    timeframe_results
-):
-    """
-    Timeframes have specific jobs.
 
-    1D / 4H  = directional context
-    1H       = setup
-    15M / 5M = entry trigger
+def build_entry_segments(timeframe_results):
+    """
+    1D / 4H: market context, not entry vetoes.
+    1H: setup context, not an absolute requirement.
+    15M / 5M: evaluate actual entry opportunities.
     """
 
     result = {
@@ -5779,314 +5783,224 @@ def build_entry_segments(
         "entry_timeframe": None,
         "entry_price": None,
         "entry_reason": None,
+        "strategy_direction": None,
+        "strategy_score": 0,
+        "qualified_reversal": False,
     }
 
-    def bias(
-        timeframe
-    ):
+    def bias(timeframe):
+        item = timeframe_results.get(timeframe, {})
+        direction = item.get("direction", "")
 
-        item = timeframe_results.get(
-            timeframe,
-            {}
-        )
-
-        direction = item.get(
-            "direction",
-            ""
-        )
-        if direction in (
-            "Strong Bullish",
-            "Bullish",
-            "Bullish Lean",
-        ):
+        if "Bullish" in direction:
             return "Bullish"
-
-        if direction in (
-            "Strong Bearish",
-            "Bearish",
-            "Bearish Lean",
-        ):
+        if "Bearish" in direction:
             return "Bearish"
-
         return "Neutral"
 
     daily = bias("1D")
     four_hour = bias("4h")
     one_hour = bias("1h")
-    fifteen = bias("15m")
-    five = bias("5m")
 
-    # ========================================================
-    # 1D + 4H = CONTEXT
-    # ========================================================
-
-    def has_qualified_reversal(item, required_direction=None):
-        analysis = item.get("strategy_analysis", {})
-        candidate = analysis.get("best_candidate")
-
-        if not isinstance(candidate, dict):
-            return False
-
-        direction = candidate.get("direction")
-        score = candidate.get("score", 0)
-        evidence = candidate.get("evidence", [])
-        setup = item.get("entry_setup", {})
-
-        if not isinstance(evidence, list):
-            return False
-
-        if (
-            direction not in ("Bullish", "Bearish")
-            or (
-                required_direction is not None
-                and direction != required_direction
-            )
-            or not isinstance(score, (int, float))
-            or score < 70
-            or not setup.get("trigger")
-            or setup.get("direction") != direction
-            or setup.get("choch") != direction
-        ):
-            return False
-
-        if direction == "Bullish":
-            return (
-                "bullish_sweep" in evidence
-                and "bullish_choch" in evidence
-            )
-
-        return (
-            "bearish_sweep" in evidence
-            and "bearish_choch" in evidence
-        )
-
-    context_direction = None
-
-    conflicting_daily_context = (
-        daily in ("Bullish", "Bearish")
-        and four_hour in ("Bullish", "Bearish")
-        and daily != four_hour
+    context = (
+        f"1D={daily}, 4H={four_hour}, 1H={one_hour}"
     )
 
-    if not conflicting_daily_context:
-        if daily in ("Bullish", "Bearish"):
-            context_direction = daily
-        elif four_hour in ("Bullish", "Bearish"):
-            context_direction = four_hour
+    candidates = []
 
-    if not context_direction:
-        for tf in ("5m", "15m"):
-            item = timeframe_results.get(tf, {})
+    # Evaluate BOTH entry timeframes before choosing.
+    for timeframe in ("5m", "15m"):
+        item = timeframe_results.get(timeframe, {})
+        if not item.get("valid"):
+            continue
 
-            if has_qualified_reversal(item):
-                candidate = item.get(
-                    "strategy_analysis", {}
-                ).get("best_candidate")
-
-                context_direction = candidate["direction"]
-                break
-
-    if not context_direction:
-        return result
-        
-    # ========================================================
-    # 1H = SETUP
-    # ========================================================
-
-    setup_result = timeframe_results.get("1h", {}).get("entry_setup", {})
-
-    one_hour_setup = setup_result.get("setup", "WAIT")
-
-    # 1H is confirmation, but should not completely
-    # block a valid lower-timeframe trigger unless
-    # it explicitly conflicts with higher-timeframe direction.
-    
-    if one_hour_setup in ("Bullish", "Bearish"):
-        if one_hour_setup != context_direction:
-            reversal_trigger_found = False
-
-            for tf in ("5m", "15m"):
-                item = timeframe_results.get(tf, {})
-                candidate = item.get(
-                    "strategy_analysis", {}
-                ).get("best_candidate")
-
-                if has_qualified_reversal(
-                    item,
-                    context_direction,
-                ):
-                    reversal_trigger_found = True
-                    break
-
-            if not reversal_trigger_found:
-                return result
-
-    # A WAIT setup on 1H is allowed to continue ONLY if
-    # the lower timeframe produces a confirmed trigger.
-    # The 15M/5M trigger remains the actual entry gate.
-
-    # ========================================================
-    # 15M / 5M = ENTRY TRIGGER
-    # ========================================================
-
-    candidates = [
-        (
-            "5m",
-            timeframe_results.get(
-                "5m",
-                {},
-            ),
-        ),
-        (
-            "15m",
-            timeframe_results.get(
-                "15m",
-                {},
-            ),
-        ),
-    ]
-
-    
-    selected = None
-
-    for timeframe, item in candidates:
-        candidate_bias = bias(timeframe)
         entry_setup = item.get("entry_setup", {})
+        analysis = item.get("strategy_analysis", {})
+        strategy = analysis.get("best_candidate")
 
-        strategy_analysis = item.get("strategy_analysis", {})
-        strategy_candidate = strategy_analysis.get("best_candidate")
+        trigger = entry_setup.get("trigger") is True
+        trigger_direction = entry_setup.get("direction")
 
         strategy_direction = None
         strategy_score = 0
+        evidence = []
 
-        if isinstance(strategy_candidate, dict):
-            strategy_direction = strategy_candidate.get("direction")
-            strategy_score = strategy_candidate.get("score", 0)
+        if isinstance(strategy, dict):
+            strategy_direction = strategy.get("direction")
+            strategy_score = strategy.get("score", 0)
+            evidence = strategy.get("evidence", [])
 
-        strategy_evidence = (
-            strategy_candidate.get("evidence", [])
-            if isinstance(strategy_candidate, dict)
-            else []
+        if not isinstance(evidence, list):
+            evidence = []
+
+        if not isinstance(strategy_score, (int, float)):
+            strategy_score = 0
+
+        # A trigger must have a usable direction.
+        trigger_usable = (
+            trigger
+            and trigger_direction in ("Bullish", "Bearish")
         )
 
-        if not isinstance(strategy_evidence, list):
-            strategy_evidence = []
-
-        reversal_evidence = (
-            strategy_direction == "Bullish"
-            and "bullish_sweep" in strategy_evidence
-            and "bullish_choch" in strategy_evidence
-        ) or (
-            strategy_direction == "Bearish"
-            and "bearish_sweep" in strategy_evidence
-            and "bearish_choch" in strategy_evidence
-        )
-
-        qualified_reversal = (
+        # A strategy candidate must have sufficient evidence.
+        strategy_usable = (
             strategy_direction in ("Bullish", "Bearish")
-            and strategy_direction == context_direction
-            and isinstance(strategy_score, (int, float))
-            and strategy_score >= 70
-            and reversal_evidence
-            and entry_setup.get("trigger")
-            and entry_setup.get("direction") == strategy_direction
-        )
-
-        if candidate_bias in ("Bullish", "Bearish"):
-            if candidate_bias != context_direction and not qualified_reversal:
-                continue
-
-        strategy_trigger = (
-            strategy_direction == context_direction
-            and isinstance(strategy_score, (int, float))
             and strategy_score >= 60
         )
 
-        if entry_setup.get("trigger") or strategy_trigger:
-            if candidate_bias != context_direction and not qualified_reversal:
-                continue
-
-            selected = (
+        if not trigger_usable and not strategy_usable:
+            print(
+                "ENTRY TIMEFRAME REJECTED:",
                 timeframe,
-                item,
-                entry_setup,
-                strategy_candidate,
-                qualified_reversal,
+                "reason=no_usable_trigger_or_candidate",
+                "trigger=", trigger,
+                "trigger_direction=", trigger_direction,
+                "strategy_direction=", strategy_direction,
+                "strategy_score=", strategy_score,
             )
-            break
+            continue
 
-    
-    if not selected:
+        # If both sources qualify but disagree, do not guess.
+        if (
+            trigger_usable
+            and strategy_usable
+            and trigger_direction != strategy_direction
+        ):
+            print(
+                "ENTRY TIMEFRAME REJECTED:",
+                timeframe,
+                "reason=trigger_candidate_conflict",
+                "trigger_direction=", trigger_direction,
+                "strategy_direction=", strategy_direction,
+            )
+            continue
+
+        direction = (
+            trigger_direction
+            if trigger_usable
+            else strategy_direction
+        )
+
+        price = item.get("price")
+        atr = item.get("atr")
+
+        if (
+            not isinstance(price, (int, float))
+            or price <= 0
+            or not isinstance(atr, (int, float))
+            or atr <= 0
+        ):
+            print(
+                "ENTRY TIMEFRAME REJECTED:",
+                timeframe,
+                "reason=invalid_price_or_atr",
+                "price=", price,
+                "atr=", atr,
+            )
+            continue
+
+        reversal_evidence = (
+            (
+                direction == "Bullish"
+                and "bullish_sweep" in evidence
+                and "bullish_choch" in evidence
+            )
+            or (
+                direction == "Bearish"
+                and "bearish_sweep" in evidence
+                and "bearish_choch" in evidence
+            )
+        )
+
+        qualified_reversal = (
+            strategy_usable
+            and strategy_direction == direction
+            and strategy_score >= 70
+            and reversal_evidence
+            and trigger_usable
+        )
+
+        # Rank candidates by evidence strength. A confirmed trigger
+        # gets a modest preference, not an automatic victory.
+        rank = strategy_score if strategy_usable else 0
+        if trigger_usable:
+            rank += 10
+
+        # Prefer 5M only when candidates otherwise tie.
+        timeframe_tiebreak = 1 if timeframe == "5m" else 0
+
+        candidates.append({
+            "rank": rank,
+            "timeframe_tiebreak": timeframe_tiebreak,
+            "timeframe": timeframe,
+            "item": item,
+            "entry_setup": entry_setup,
+            "strategy": strategy,
+            "direction": direction,
+            "strategy_score": (
+                strategy_score if strategy_usable else 0
+            ),
+            "qualified_reversal": qualified_reversal,
+        })
+
+    if not candidates:
         print(
             "ENTRY SEGMENTS REJECTED:",
-            "context=", context_direction,
-            "1h_setup=", one_hour_setup,
-            "5m_bias=", five,
-            "15m_bias=", fifteen,
-            "5m_trigger=",
-            timeframe_results.get("5m", {}).get(
-                "entry_setup", {}
-            ).get("trigger"),
-            "15m_trigger=",
-            timeframe_results.get("15m", {}).get(
-                "entry_setup", {}
-            ).get("trigger"),
+            "reason=no_usable_5m_or_15m_setup",
+            "context=", context,
         )
         return result
 
+    candidates.sort(
+        key=lambda candidate: (
+            candidate["rank"],
+            candidate["timeframe_tiebreak"],
+        ),
+        reverse=True,
+    )
 
-    (
-        timeframe,
-        item,
-        entry_setup,
-        strategy_candidate,
-        qualified_reversal,
-    ) = selected
+    selected = candidates[0]
+    item = selected["item"]
+    entry_setup = selected["entry_setup"]
+    strategy = selected["strategy"]
 
     result.update({
         "valid": True,
+        "direction": selected["direction"],
+        "context": context,
+        "setup": (
+            entry_setup.get("setup", "WAIT")
+            if entry_setup.get("trigger") is True
+            else (
+                strategy.get("strategy", "STRATEGY CANDIDATE")
+                if isinstance(strategy, dict)
+                else "STRATEGY CANDIDATE"
+            )
+        ),
+        "entry": entry_setup.get("setup", "WAIT"),
+        "entry_timeframe": selected["timeframe"],
+        "entry_price": item.get("price"),
+        "entry_reason": (
+            entry_setup.get("entry_reason")
+            or "Qualified strategy candidate"
+        ),
         "strategy_direction": (
-            strategy_candidate.get("direction")
-            if isinstance(strategy_candidate, dict)
+            strategy.get("direction")
+            if isinstance(strategy, dict)
             else None
         ),
-        "strategy_score": (
-            strategy_candidate.get("score", 0)
-            if isinstance(strategy_candidate, dict)
-            else 0
-        ),
-        "qualified_reversal": qualified_reversal,
-        "direction":
-            context_direction,
-
-        "context":
-            context_direction,
-
-        "setup":
-            setup_result.get(
-                "setup",
-                "WAIT",
-            ),
-
-        "entry":
-            entry_setup.get(
-                "setup",
-                "WAIT",
-            ),
-
-        "entry_timeframe":
-            timeframe,
-
-        "entry_price":
-            item.get(
-                "price"
-            ),
-
-        "entry_reason":
-            entry_setup.get(
-                "entry_reason"
-            ),
+        "strategy_score": selected["strategy_score"],
+        "qualified_reversal": selected["qualified_reversal"],
     })
+
+    print(
+        "ENTRY SELECTED:",
+        "timeframe=", selected["timeframe"],
+        "direction=", selected["direction"],
+        "rank=", selected["rank"],
+        "qualified_reversal=", selected["qualified_reversal"],
+        "context=", context,
+    )
 
     return result
     
@@ -6141,23 +6055,25 @@ def build_signal(
         return None
 
     qualified_reversal = (
-        isinstance(entry_segments, dict)
-        and entry_segments.get("qualified_reversal") is True
-        and entry_segments.get("strategy_direction") == label
-    )
+    isinstance(entry_segments, dict)
+    and entry_segments.get("valid") is True
+    and entry_segments.get("qualified_reversal") is True
+    and entry_segments.get("strategy_direction") == label
+)
 
-    if (
-        structure in ("Bullish", "Bearish")
-        and structure != label
-        and not qualified_reversal
-    ):
-        print(
-            "SIGNAL REJECTED:", coin,
-            "reason=structure_conflicts_with_signal",
-            "structure=", structure,
-            "label=", label,
-        )
-        return None
+# Overall structure is context. A valid lower-timeframe entry
+# may oppose it, but that conflict must be explicitly logged.
+if (
+    structure in ("Bullish", "Bearish")
+    and structure != label
+):
+    print(
+        "ENTRY CONTEXT CONFLICT:",
+        coin,
+        "structure=", structure,
+        "entry_direction=", label,
+        "qualified_reversal=", qualified_reversal,
+    )
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
     # ========================================================
