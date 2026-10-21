@@ -7476,6 +7476,7 @@ def build_signal_message(analysis, audience="free"):
         f"<b>🚨 SIDESHIFT AI — {title}</b>\n\n"
         f"{emoji} <b>{coin}</b>\n"
         f"📍 <b>Direction:</b> {direction_label}\n"
+        f"⚙️ <b>Leverage setting:</b> {SIMULATED_LEVERAGE}x\n"
         f"💰 <b>Entry:</b> {format_price(entry)}\n\n"
         f"🎯 <b>TP1:</b> {format_price(tp1)}\n"
         f"🎯 <b>TP2:</b> {format_price(tp2)}\n"
