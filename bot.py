@@ -6002,31 +6002,8 @@ def build_signal(
     entry_segments=None,
 ):
 
-        
-    if valid_count < 2:
-        print(
-            "SIGNAL REJECTED:", coin,
-            "reason=insufficient_valid_timeframes",
-            "valid_count=", valid_count,
-        )
-        return None
-
-    if confidence < 45:
-        print(
-            "SIGNAL REJECTED:", coin,
-            "reason=low_confidence",
-            "confidence=", round(confidence, 1),
-        )
-        return None
-
-    if abs(score) < 2:
-        print(
-            "SIGNAL REJECTED:", coin,
-            "reason=low_score",
-            "score=", round(score, 2),
-        )
-        return None
-
+    # The selected short-term entry determines qualification.
+    # Overall score, confidence, and structure remain contextual.
     if label not in ("Bullish", "Bearish"):
         print(
             "SIGNAL REJECTED:", coin,
@@ -6035,34 +6012,17 @@ def build_signal(
         )
         return None
 
-    qualified_reversal = (
-        isinstance(entry_segments, dict)
-        and entry_segments.get("valid") is True
-        and entry_segments.get("qualified_reversal") is True
-        and entry_segments.get("strategy_direction") == label
+    print(
+        "ENTRY-DRIVEN QUALIFICATION CONTEXT:",
+        coin,
+        "entry_direction=", label,
+        "overall_score=", round(score, 2),
+        "overall_confidence=", round(confidence, 1),
+        "valid_timeframes=", valid_count,
+        "overall_structure=", structure,
+        "decision=entry_setup_controls",
     )
 
-    # Overall structure is context, not an automatic veto.
-    if (
-        structure in ("Bullish", "Bearish")
-        and structure != label
-    ):
-        if not qualified_reversal:
-            print(
-                "SIGNAL REJECTED:", coin,
-                "reason=opposing_structure_without_qualified_reversal",
-                "structure=", structure,
-                "entry_direction=", label,
-                "qualified_reversal=", qualified_reversal,
-            )
-            return None
-
-        print(
-            "QUALIFIED COUNTERTREND REVERSAL:",
-            coin,
-            "structure=", structure,
-            "entry_direction=", label,
-        )
     # ========================================================
     # NEW: SEGMENTED ENTRY VALIDATION
     # ========================================================
