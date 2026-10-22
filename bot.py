@@ -463,7 +463,6 @@ def get_midnight_candle_close(coin, report_date):
                     "interval": "5m",
                     "from": int(candle_start_ms / 1000),
                     "to": int(cutoff_ms / 1000),
-                    "limit": 10,
                 },
                 timeout=REQUEST_TIMEOUT,
                 headers={"Accept": "application/json"},
