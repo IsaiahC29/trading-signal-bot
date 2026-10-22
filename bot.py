@@ -9625,6 +9625,33 @@ def daily_report_loop():
                 time.sleep(60)
                 continue
 
+            # Finalize unfinished trades from previous reporting days.
+            try:
+                with psycopg.connect(
+                    DATABASE_URL,
+                    connect_timeout=10,
+                ) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            SELECT DISTINCT report_date
+                            FROM signal_records
+                            WHERE report_date < %s
+                              AND status = 'OPEN'
+                            ORDER BY report_date
+                        """, (today,))
+                        dates_to_finalize = [
+                            row[0] for row in cur.fetchall()
+                        ]
+
+                for old_date in dates_to_finalize:
+                    finalize_open_trades_for_date(old_date)
+
+            except Exception as exc:
+                print(
+                    "MIDNIGHT FINALIZATION SCHEDULER ERROR:",
+                    repr(exc),
+                )
+
             with psycopg.connect(
                 DATABASE_URL,
                 connect_timeout=10,
