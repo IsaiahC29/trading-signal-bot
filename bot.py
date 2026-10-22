@@ -394,7 +394,125 @@ def update_signal_outcome(
         print("REPORTING DB OUTCOME ERROR:", repr(exc))
         return False
 
+def get_verified_midnight_price(coin):
+    """Return a fresh verified perpetual price, or None if unavailable."""
+    now_ts = time.time()
 
+    # Try OKX first.
+    if OKX_MARKET_DISCOVERY_OK and coin in OKX_PERPETUAL_MARKETS:
+        try:
+            response = requests.get(
+                "https://www.okx.com/api/v5/market/ticker",
+                params={"instId": OKX_PERPETUAL_MARKETS[coin]},
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": "SideShiftAI/4.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = payload.get("data", [])
+
+            if payload.get("code") == "0" and rows:
+                row = rows[0]
+                price = float(row.get("last", 0))
+                timestamp = float(row.get("ts", 0)) / 1000
+
+                if (
+                    price > 0
+                    and timestamp > 0
+                    and 0 <= now_ts - timestamp <= 180
+                ):
+                    return price
+
+        except Exception as exc:
+            print("MIDNIGHT OKX PRICE ERROR:", coin, repr(exc))
+
+    # Fall back to Gate.io.
+    if GATEIO_MARKET_DISCOVERY_OK and coin in GATEIO_PERPETUAL_MARKETS:
+        try:
+            response = requests.get(
+                "https://api.gateio.ws/api/v4/futures/usdt/tickers",
+                params={"contract": GATEIO_PERPETUAL_MARKETS[coin]},
+                timeout=REQUEST_TIMEOUT,
+                headers={"Accept": "application/json"},
+            )
+            response.raise_for_status()
+            rows = response.json()
+
+            if isinstance(rows, list) and rows:
+                row = rows[0]
+                price = float(row.get("last", 0))
+                timestamp = float(row.get("time", 0))
+
+                if (
+                    price > 0
+                    and timestamp > 0
+                    and 0 <= now_ts - timestamp <= 180
+                ):
+                    return price
+
+        except Exception as exc:
+            print("MIDNIGHT GATE.IO PRICE ERROR:", coin, repr(exc))
+
+    print(
+        "MIDNIGHT PRICE UNAVAILABLE:",
+        coin,
+        "- leaving trade open rather than inventing a result",
+    )
+    return None
+
+
+def finalize_open_trades_for_date(report_date):
+    """Close open simulated trades using a fresh verified market price."""
+    if not DATABASE_URL:
+        print("MIDNIGHT FINALIZER SKIPPED: database unavailable.")
+        return False
+
+    try:
+        with psycopg.connect(
+            DATABASE_URL,
+            connect_timeout=10,
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, coin, highest_target_hit
+                    FROM signal_records
+                    WHERE report_date = %s
+                      AND status = 'OPEN'
+                    ORDER BY sent_at ASC
+                """, (report_date,))
+                open_trades = cur.fetchall()
+
+        all_closed = True
+
+        for record_id, coin, highest_target_hit in open_trades:
+            exit_price = get_verified_midnight_price(coin)
+
+            if exit_price is None:
+                all_closed = False
+                continue
+
+            saved = update_signal_outcome(
+                record_id=record_id,
+                status="MIDNIGHT",
+                exit_price=exit_price,
+                highest_target_hit=highest_target_hit or 0,
+            )
+
+            if not saved:
+                all_closed = False
+
+        print(
+            "MIDNIGHT FINALIZER:",
+            report_date,
+            "trades found:", len(open_trades),
+            "all closed:", all_closed,
+        )
+        return all_closed
+
+    except Exception as exc:
+        print("MIDNIGHT FINALIZER ERROR:", repr(exc))
+        return False
+        
 def send_daily_report(audience, report_date=None):
     if audience not in ("free", "vip"):
         return False
