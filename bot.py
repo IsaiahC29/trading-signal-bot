@@ -9612,6 +9612,132 @@ def setup_telegram_webhook():
 # ============================================================
 
 
+def send_final_daily_report(audience, report_date):
+    """Send a separate final recap after all trades are resolved."""
+    if audience not in ("free", "vip"):
+        return False
+
+    chat_id = (
+        FREE_SIGNAL_CHAT_ID
+        if audience == "free"
+        else VIP_SIGNAL_CHAT_ID
+    )
+
+    if not DATABASE_URL or not chat_id:
+        return False
+
+    try:
+        with psycopg.connect(
+            DATABASE_URL,
+            connect_timeout=10,
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1
+                    FROM daily_final_report_log
+                    WHERE report_date = %s AND audience = %s
+                """, (report_date, audience))
+
+                if cur.fetchone():
+                    return False
+
+                cur.execute("""
+                    SELECT coin, direction, status, pnl_usd,
+                           highest_target_hit, leverage
+                    FROM signal_records
+                    WHERE report_date = %s AND audience = %s
+                    ORDER BY sent_at ASC
+                """, (report_date, audience))
+
+                rows = cur.fetchall()
+
+        if not rows:
+            return False
+
+        # Do not call the recap final while any result is unresolved.
+        if any(row[2] == "OPEN" or row[3] is None for row in rows):
+            print(
+                "FINAL REPORT WAITING FOR RESULTS:",
+                audience, report_date,
+            )
+            return False
+
+        completed = [
+            row for row in rows
+            if row[3] is not None and row[2] != "OPEN"
+        ]
+        wins = sum(1 for row in completed if float(row[3]) > 0)
+        losses = sum(1 for row in completed if float(row[3]) < 0)
+        net_pnl = sum(float(row[3]) for row in completed)
+        win_rate = wins / len(completed) * 100 if completed else 0.0
+
+        title = "FREE" if audience == "free" else "VIP"
+        lines = [
+            f"<b>📊 SIDESHIFT AI — {title} FINAL RESULTS</b>",
+            f"📅 {report_date.strftime('%b %d, %Y')}",
+            "",
+        ]
+
+        for coin, direction, status, pnl, highest_target, leverage in completed:
+            pnl = float(pnl)
+            icon = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
+            status_text = {
+                "TP1": "TP1 HIT",
+                "TP2": "TP2 HIT",
+                "TP3": "TP3 HIT",
+                "SL": "STOP LOSS",
+                "MIDNIGHT": "MIDNIGHT MARKET CLOSE",
+            }.get(str(status), str(status))
+
+            target_note = (
+                f" | Highest target: TP{highest_target}"
+                if highest_target else ""
+            )
+
+            lines.extend([
+                f"{icon} <b>{html.escape(str(coin))}</b> — "
+                f"{html.escape(str(direction))}",
+                f"Outcome: {html.escape(status_text)}{target_note}",
+                f"Leverage: {int(leverage or 25)}x",
+                f"Simulated P/L: <b>{'+' if pnl > 0 else ''}${pnl:,.2f}</b>",
+                "",
+            ])
+
+        lines.extend([
+            "━━━━━━━━━━━━━━━━━━",
+            f"Signals: <b>{len(completed)}</b>",
+            f"Wins: <b>{wins}</b>",
+            f"Losses: <b>{losses}</b>",
+            f"Win rate: <b>{win_rate:.1f}%</b>",
+            f"Net simulated P/L: <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
+        ])
+
+        message = "\n".join(lines)
+
+        if not send_telegram(message, chat_id):
+            print("FINAL REPORT SEND FAILED:", audience, report_date)
+            return False
+
+        with psycopg.connect(
+            DATABASE_URL,
+            connect_timeout=10,
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO daily_final_report_log
+                        (report_date, audience)
+                    VALUES (%s, %s)
+                    ON CONFLICT (report_date, audience) DO NOTHING
+                """, (report_date, audience))
+            conn.commit()
+
+        print("FINAL REPORT SENT:", audience, report_date)
+        return True
+
+    except Exception as exc:
+        print("FINAL REPORT ERROR:", audience, repr(exc))
+        return False
+
 def daily_report_loop():
     print("SideShift daily report scheduler started.")
     eastern = ZoneInfo("America/New_York")
