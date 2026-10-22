@@ -3,7 +3,7 @@ import html
 import time
 import math
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -460,9 +460,25 @@ def get_verified_midnight_price(coin):
     )
     return None
 
-
 def finalize_open_trades_for_date(report_date):
     """Close open simulated trades using a fresh verified market price."""
+    eastern = ZoneInfo("America/New_York")
+    cutoff = datetime(
+        report_date.year,
+        report_date.month,
+        report_date.day,
+        tzinfo=eastern,
+    ) + timedelta(days=1)
+    now = datetime.now(eastern)
+
+    if now < cutoff or now > cutoff + timedelta(minutes=3):
+        print(
+            "MIDNIGHT FINALIZER SKIPPED:",
+            report_date,
+            "- outside the 3-minute cutoff window",
+        )
+        return False
+
     if not DATABASE_URL:
         print("MIDNIGHT FINALIZER SKIPPED: database unavailable.")
         return False
