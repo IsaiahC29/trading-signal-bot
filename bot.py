@@ -511,8 +511,9 @@ def get_midnight_candle_close(coin, report_date):
     )
     return None
 
+
 def finalize_open_trades_for_date(report_date):
-    """Close open simulated trades using a fresh verified market price."""
+    """Finalize open simulated trades using their exact midnight candle close."""
     eastern = ZoneInfo("America/New_York")
     cutoff = datetime(
         report_date.year,
@@ -520,14 +521,8 @@ def finalize_open_trades_for_date(report_date):
         report_date.day,
         tzinfo=eastern,
     ) + timedelta(days=1)
-    now = datetime.now(eastern)
 
-    if now < cutoff or now > cutoff + timedelta(minutes=3):
-        print(
-            "MIDNIGHT FINALIZER SKIPPED:",
-            report_date,
-            "- outside the 3-minute cutoff window",
-        )
+    if datetime.now(eastern) < cutoff:
         return False
 
     if not DATABASE_URL:
@@ -552,7 +547,7 @@ def finalize_open_trades_for_date(report_date):
         all_closed = True
 
         for record_id, coin, highest_target_hit in open_trades:
-            exit_price = get_verified_midnight_price(coin)
+            exit_price = get_midnight_candle_close(coin, report_date)
 
             if exit_price is None:
                 all_closed = False
