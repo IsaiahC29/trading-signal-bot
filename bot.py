@@ -394,69 +394,120 @@ def update_signal_outcome(
         print("REPORTING DB OUTCOME ERROR:", repr(exc))
         return False
 
-def get_verified_midnight_price(coin):
-    """Return a fresh verified perpetual price, or None if unavailable."""
-    now_ts = time.time()
 
-    # Try OKX first.
+def get_midnight_candle_close(coin, report_date):
+    """Return the verified close of the 5-minute candle ending at midnight Eastern."""
+    eastern = ZoneInfo("America/New_York")
+    cutoff = datetime(
+        report_date.year,
+        report_date.month,
+        report_date.day,
+        tzinfo=eastern,
+    ) + timedelta(days=1)
+
+    cutoff_ms = int(cutoff.timestamp() * 1000)
+    candle_start_ms = cutoff_ms - 5 * 60 * 1000
+
+    coin = coin.upper()
+
+    # Source 1: OKX historical candles.
     if OKX_MARKET_DISCOVERY_OK and coin in OKX_PERPETUAL_MARKETS:
         try:
             response = requests.get(
-                "https://www.okx.com/api/v5/market/ticker",
-                params={"instId": OKX_PERPETUAL_MARKETS[coin]},
+                "https://www.okx.com/api/v5/market/history-candles",
+                params={
+                    "instId": OKX_PERPETUAL_MARKETS[coin],
+                    "bar": "5m",
+                    "after": str(cutoff_ms),
+                    "limit": "100",
+                },
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "SideShiftAI/4.0"},
             )
             response.raise_for_status()
             payload = response.json()
-            rows = payload.get("data", [])
 
-            if payload.get("code") == "0" and rows:
-                row = rows[0]
-                price = float(row.get("last", 0))
-                timestamp = float(row.get("ts", 0)) / 1000
+            if payload.get("code") == "0":
+                for row in payload.get("data", []):
+                    if len(row) < 9:
+                        continue
 
-                if (
-                    price > 0
-                    and timestamp > 0
-                    and 0 <= now_ts - timestamp <= 180
-                ):
-                    return price
+                    timestamp = int(row[0])
+                    close_price = float(row[4])
+                    confirmed = str(row[8]) == "1"
+
+                    if (
+                        timestamp == candle_start_ms
+                        and confirmed
+                        and math.isfinite(close_price)
+                        and close_price > 0
+                    ):
+                        print(
+                            "MIDNIGHT HISTORICAL CANDLE: OKX",
+                            coin,
+                            report_date,
+                            close_price,
+                        )
+                        return close_price
 
         except Exception as exc:
-            print("MIDNIGHT OKX PRICE ERROR:", coin, repr(exc))
+            print("MIDNIGHT OKX HISTORY ERROR:", coin, repr(exc))
 
-    # Fall back to Gate.io.
+    # Source 2: Gate.io historical candles for the exact same interval.
     if GATEIO_MARKET_DISCOVERY_OK and coin in GATEIO_PERPETUAL_MARKETS:
         try:
             response = requests.get(
-                "https://api.gateio.ws/api/v4/futures/usdt/tickers",
-                params={"contract": GATEIO_PERPETUAL_MARKETS[coin]},
+                "https://api.gateio.ws/api/v4/futures/usdt/candlesticks",
+                params={
+                    "contract": GATEIO_PERPETUAL_MARKETS[coin],
+                    "interval": "5m",
+                    "from": int(candle_start_ms / 1000),
+                    "to": int(cutoff_ms / 1000),
+                    "limit": 10,
+                },
                 timeout=REQUEST_TIMEOUT,
                 headers={"Accept": "application/json"},
             )
             response.raise_for_status()
             rows = response.json()
 
-            if isinstance(rows, list) and rows:
-                row = rows[0]
-                price = float(row.get("last", 0))
-                timestamp = float(row.get("time", 0))
+            if isinstance(rows, list):
+                for row in rows:
+                    if isinstance(row, dict):
+                        timestamp = row.get("t", row.get("timestamp"))
+                        close_value = row.get("c", row.get("close"))
+                    elif isinstance(row, (list, tuple)) and len(row) >= 6:
+                        timestamp, _, close_value, _, _, _ = row[:6]
+                    else:
+                        continue
 
-                if (
-                    price > 0
-                    and timestamp > 0
-                    and 0 <= now_ts - timestamp <= 180
-                ):
-                    return price
+                    timestamp = int(float(timestamp))
+                    if timestamp < 100_000_000_000:
+                        timestamp *= 1000
+
+                    close_price = float(close_value)
+
+                    if (
+                        timestamp == candle_start_ms
+                        and math.isfinite(close_price)
+                        and close_price > 0
+                    ):
+                        print(
+                            "MIDNIGHT HISTORICAL CANDLE: Gate.io",
+                            coin,
+                            report_date,
+                            close_price,
+                        )
+                        return close_price
 
         except Exception as exc:
-            print("MIDNIGHT GATE.IO PRICE ERROR:", coin, repr(exc))
+            print("MIDNIGHT GATE.IO HISTORY ERROR:", coin, repr(exc))
 
     print(
-        "MIDNIGHT PRICE UNAVAILABLE:",
+        "MIDNIGHT HISTORICAL CANDLE UNAVAILABLE:",
         coin,
-        "- leaving trade open rather than inventing a result",
+        report_date,
+        "- no later price substituted",
     )
     return None
 
