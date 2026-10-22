@@ -9795,11 +9795,29 @@ def daily_report_loop():
                     """, (today,))
                     pending_reports = cur.fetchall()
 
+            
             for report_date, audience in pending_reports:
                 if report_date == today:
                     continue
 
                 send_daily_report(audience, report_date)
+
+            # Send a separate final recap for previous reporting days.
+            with psycopg.connect(
+                DATABASE_URL,
+                connect_timeout=10,
+            ) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT report_date, audience
+                        FROM signal_records
+                        WHERE report_date < %s
+                        ORDER BY report_date, audience
+                    """, (today,))
+                    final_report_candidates = cur.fetchall()
+
+            for report_date, audience in final_report_candidates:
+                send_final_daily_report(audience, report_date)
 
         except Exception as exc:
             print("DAILY REPORT SCHEDULER ERROR:", repr(exc))
