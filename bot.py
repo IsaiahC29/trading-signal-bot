@@ -126,6 +126,17 @@ def init_reporting_db():
                     ALTER TABLE signal_records
                     ADD COLUMN IF NOT EXISTS leverage INTEGER NOT NULL DEFAULT 25
                 """)
+                
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS daily_final_report_log (
+                        report_date DATE NOT NULL,
+                        audience TEXT NOT NULL
+                            CHECK (audience IN ('free', 'vip')),
+                        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (report_date, audience)
+                    )
+                """)
+
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS vip_payment_submissions (
                         id BIGSERIAL PRIMARY KEY,
