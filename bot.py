@@ -267,7 +267,7 @@ def update_signal_outcome(
         print("REPORTING DB ERROR: DATABASE_URL is not configured.")
         return False
 
-    valid_statuses = {"TP1", "TP2", "TP3", "SL"}
+    valid_statuses = {"TP1", "TP2", "TP3", "SL", "MIDNIGHT"}
 
     if status not in valid_statuses:
         print("REPORTING DB ERROR: invalid outcome status:", status)
@@ -508,11 +508,12 @@ def send_daily_report(audience, report_date=None):
             )
 
             status_text = {
-                "TP1": "TP1 HIT",
-                "TP2": "TP2 HIT",
-                "TP3": "TP3 HIT",
-                "SL": "STOP LOSS",
-            }.get(str(status), str(status))
+                 "TP1": "TP1 HIT",
+                 "TP2": "TP2 HIT",
+                 "TP3": "TP3 HIT",
+                 "SL": "STOP LOSS",
+                 "MIDNIGHT": "MIDNIGHT MARKET CLOSE",
+             }.get(str(status), str(status))
 
             report_lines.extend([
                 f"{result_icon} <b>{coin_text}</b> — {direction_text}",
