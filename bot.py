@@ -9715,18 +9715,18 @@ def send_final_daily_report(audience, report_date):
         if not rows:
             return False
 
-        # Do not call the recap final while any result is unresolved.
-        if any(row[2] == "OPEN" or row[3] is None for row in rows):
-            print(
-                "FINAL REPORT WAITING FOR RESULTS:",
-                audience, report_date,
-            )
-            return False
-
+        
+        # Send the final recap even if some trades remain unresolved.
+        # Never invent an outcome or P/L for unresolved trades.
         completed = [
             row for row in rows
             if row[3] is not None and row[2] != "OPEN"
         ]
+        unresolved = [
+            row for row in rows
+            if row[2] == "OPEN" or row[3] is None
+        ]
+        
         wins = sum(1 for row in completed if float(row[3]) > 0)
         losses = sum(1 for row in completed if float(row[3]) < 0)
         net_pnl = sum(float(row[3]) for row in completed)
@@ -9764,14 +9764,27 @@ def send_final_daily_report(audience, report_date):
                 "",
             ])
 
+        for coin, direction, status, pnl, highest_target, leverage in unresolved:
+            lines.extend([
+                f"⚠️ <b>{html.escape(str(coin))}</b> — "
+                f"{html.escape(str(direction))}",
+                "Outcome: <b>UNRESOLVED — verified result unavailable</b>",
+                "Simulated P/L: Not calculated; excluded from totals",
+                "",
+            ])
+
+        
         lines.extend([
             "━━━━━━━━━━━━━━━━━━",
-            f"Signals: <b>{len(completed)}</b>",
+            f"Signals sent: <b>{len(rows)}</b>",
+            f"Resolved: <b>{len(completed)}</b>",
+            f"Unresolved: <b>{len(unresolved)}</b>",
             f"Wins: <b>{wins}</b>",
             f"Losses: <b>{losses}</b>",
             f"Win rate: <b>{win_rate:.1f}%</b>",
             f"Net simulated P/L: <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
         ])
+
 
         message = "\n".join(lines)
 
@@ -9855,13 +9868,6 @@ def daily_report_loop():
                         ORDER BY sr.report_date, sr.audience
                     """, (today,))
                     pending_reports = cur.fetchall()
-
-            
-            for report_date, audience in pending_reports:
-                if report_date == today:
-                    continue
-
-                send_daily_report(audience, report_date)
 
             # Send a separate final recap for previous reporting days.
             with psycopg.connect(
