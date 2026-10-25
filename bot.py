@@ -9785,30 +9785,30 @@ def send_final_daily_report(audience, report_date):
             f"Net simulated P/L: <b>{'+' if net_pnl > 0 else ''}${net_pnl:,.2f}</b>",
         ])
 
-# Split long final reports into Telegram-safe messages.
-MAX_MESSAGE_LENGTH = 3500
-messages = []
-current_lines = []
-current_length = 0
-
-for line in lines:
-    line_length = len(line) + 1
-
-    if current_lines and current_length + line_length > MAX_MESSAGE_LENGTH:
-        messages.append("\n".join(current_lines))
+        # Split long final reports into Telegram-safe messages.
+        max_message_length = 3500
+        messages = []
         current_lines = []
         current_length = 0
 
-    current_lines.append(line)
-    current_length += line_length
+        for line in lines:
+            line_length = len(line) + 1
 
-if current_lines:
-    messages.append("\n".join(current_lines))
+            if current_lines and current_length + line_length > max_message_length:
+                messages.append("\n".join(current_lines))
+                current_lines = []
+                current_length = 0
 
-for message in messages:
-    if not send_telegram(message, chat_id):
-        print("FINAL REPORT SEND FAILED:", audience, report_date)
-        return False
+            current_lines.append(line)
+            current_length += line_length
+
+        if current_lines:
+            messages.append("\n".join(current_lines))
+
+        for message in messages:
+            if not send_telegram(message, chat_id):
+                print("FINAL REPORT SEND FAILED:", audience, report_date)
+                return False
 
         with psycopg.connect(
             DATABASE_URL,
