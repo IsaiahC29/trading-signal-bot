@@ -7701,7 +7701,10 @@ def run_signal_engine():
             if not message:
 
                 continue
-
+            if not automatic_signal_window_open():
+                print("SIGNAL WINDOW CLOSED. Skipping new Free signal.")
+                break
+                
             if send_telegram(
                 message,
                 FREE_SIGNAL_CHAT_ID,
@@ -7789,7 +7792,10 @@ def run_signal_engine():
             if not message:
 
                 continue
-
+            if not automatic_signal_window_open():
+                print("SIGNAL WINDOW CLOSED. Skipping new VIP signal.")
+                break
+                
             if send_telegram(
                 message,
                 VIP_SIGNAL_CHAT_ID,
