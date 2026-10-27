@@ -3509,6 +3509,165 @@ def evaluate_strategy_combinations(candles, technical):
                 45 + (10 if fib_bearish_near else 0),
             )
 
+        # Candlestick and inverse-FVG research candidates.
+        # These rules generate hypotheses, not confirmed trade signals.
+        if len(completed) >= 3:
+            previous = completed[-2]
+            latest = completed[-1]
+
+            prev_open = float(previous["open"])
+            prev_close = float(previous["close"])
+            latest_open = float(latest["open"])
+            latest_close = float(latest["close"])
+            latest_high = float(latest["high"])
+            latest_low = float(latest["low"])
+
+            body = abs(latest_close - latest_open)
+            candle_range = latest_high - latest_low
+            upper_wick = latest_high - max(
+                latest_open, latest_close
+            )
+            lower_wick = min(
+                latest_open, latest_close
+            ) - latest_low
+
+            # Shooting star: long upper wick and close near low.
+            if (
+                candle_range > 0
+                and upper_wick >= 2 * max(
+                    body, candle_range * 0.01
+                )
+                and lower_wick <= candle_range * 0.20
+                and latest_close <= (
+                    latest_low + candle_range * 0.40
+                )
+            ):
+                add_candidate(
+                    "Shooting star rejection",
+                    "Bearish",
+                    ["shooting_star", "upper_wick_rejection"],
+                    45 + (
+                        10 if bos == "Bearish" else 0
+                    ) + (
+                        10 if bearish_fvg_near else 0
+                    ) + (
+                        10 if bearish_block_near else 0
+                    ) + (
+                        5 if fib_bearish_near else 0
+                    ),
+                )
+
+            # Harami: latest real body is inside prior real body.
+            previous_body_high = max(prev_open, prev_close)
+            previous_body_low = min(prev_open, prev_close)
+            latest_body_high = max(latest_open, latest_close)
+            latest_body_low = min(latest_open, latest_close)
+
+            harami = (
+                previous_body_high > previous_body_low
+                and latest_body_high <= previous_body_high
+                and latest_body_low >= previous_body_low
+            )
+
+            if harami and prev_close > prev_open:
+                add_candidate(
+                    "Bearish harami",
+                    "Bearish",
+                    ["bearish_harami"],
+                    45 + (
+                        10 if bos == "Bearish" else 0
+                    ) + (
+                        10 if bearish_fvg_near else 0
+                    ) + (
+                        10 if bearish_block_near else 0
+                    ) + (
+                        5 if fib_bearish_near else 0
+                    ),
+                )
+
+            elif harami and prev_close < prev_open:
+                add_candidate(
+                    "Bullish harami",
+                    "Bullish",
+                    ["bullish_harami"],
+                    45 + (
+                        10 if bos == "Bullish" else 0
+                    ) + (
+                        10 if bullish_fvg_near else 0
+                    ) + (
+                        10 if bullish_block_near else 0
+                    ) + (
+                        5 if fib_bullish_near else 0
+                    ),
+                )
+
+        # Inverse FVG: a prior gap is closed through, then
+        # price returns near the zone from the opposite side.
+        # The zone must be recent and the breach must be closed.
+        for zone_direction, zones in (
+            ("Bullish", fvg["bullish"]),
+            ("Bearish", fvg["bearish"]),
+        ):
+            for zone in zones:
+                if zone["age"] > 30:
+                    continue
+
+                zone_low = float(zone["low"])
+                zone_high = float(zone["high"])
+                created_index = int(zone["created_index"])
+
+                later_candles = completed[created_index + 1:]
+                if not later_candles:
+                    continue
+
+                if zone_direction == "Bullish":
+                    inverted = any(
+                        float(c["close"]) < zone_low
+                        for c in later_candles
+                    )
+                    retest_near = (
+                        current_price <= zone_high + atr
+                        and current_price >= zone_low - atr
+                    )
+
+                    if inverted and retest_near:
+                        add_candidate(
+                            "Bullish FVG inverted to bearish",
+                            "Bearish",
+                            ["bullish_fvg_breached_down", "inverse_fvg_retest"],
+                            45 + (
+                                10 if bos == "Bearish" else 0
+                            ) + (
+                                10 if choch == "Bearish" else 0
+                            ) + (
+                                10 if bearish_block_near else 0
+                            ),
+                        )
+
+                else:
+                    inverted = any(
+                        float(c["close"]) > zone_high
+                        for c in later_candles
+                    )
+                    retest_near = (
+                        current_price >= zone_low - atr
+                        and current_price <= zone_high + atr
+                    )
+
+                    if inverted and retest_near:
+                        add_candidate(
+                            "Bearish FVG inverted to bullish",
+                            "Bullish",
+                            ["bearish_fvg_breached_up", "inverse_fvg_retest"],
+                            45 + (
+                                10 if bos == "Bullish" else 0
+                            ) + (
+                                10 if choch == "Bullish" else 0
+                            ) + (
+                                10 if bullish_block_near else 0
+                            ),
+                        )
+
         # A score ranks rule-based evidence only. It is not
         # a probability of winning and must not be described
         # as one until calibrated against historical results.
