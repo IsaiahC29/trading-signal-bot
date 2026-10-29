@@ -3237,6 +3237,84 @@ def detect_smc_structure(candles):
 
     return result
 
+def detect_trendline_fvg_experiment(candles, lookback=20):
+    """
+    Experimental trendline-break + FVG detector.
+    Does not generate or authorize live trades.
+
+    Expects candles as dictionaries with:
+    high, low, close
+    """
+
+    result = {
+        "detected": False,
+        "direction": None,
+        "break_level": None,
+        "fvg_low": None,
+        "fvg_high": None,
+        "reason": "No qualifying setup",
+    }
+
+    if not isinstance(candles, list) or len(candles) < lookback + 3:
+        result["reason"] = "Insufficient candle history"
+        return result
+
+    try:
+        recent = candles[-(lookback + 3):]
+        highs = [float(c["high"]) for c in recent]
+        lows = [float(c["low"]) for c in recent]
+        closes = [float(c["close"]) for c in recent]
+    except (KeyError, TypeError, ValueError):
+        result["reason"] = "Invalid candle data"
+        return result
+
+    if not all(
+        math.isfinite(v) and v > 0
+        for v in highs + lows + closes
+    ):
+        result["reason"] = "Invalid price values"
+        return result
+
+    # Use recent highs/lows as a simple trendline approximation.
+    prior_highs = highs[-(lookback + 2):-2]
+    prior_lows = lows[-(lookback + 2):-2]
+
+    descending = prior_highs[-1] < prior_highs[0]
+    ascending = prior_lows[-1] > prior_lows[0]
+
+    # Three-candle FVG: middle candle leaves an imbalance.
+    candle_a = recent[-3]
+    candle_c = recent[-1]
+
+    bullish_fvg = float(candle_a["high"]) < float(candle_c["low"])
+    bearish_fvg = float(candle_a["low"]) > float(candle_c["high"])
+
+    previous_close = closes[-2]
+    last_close = closes[-1]
+
+    if descending and last_close > max(prior_highs):
+        if bullish_fvg:
+            result.update({
+                "detected": True,
+                "direction": "Bullish",
+                "break_level": max(prior_highs),
+                "fvg_low": float(candle_a["high"]),
+                "fvg_high": float(candle_c["low"]),
+                "reason": "Upside break with bullish FVG",
+            })
+
+    elif ascending and last_close < min(prior_lows):
+        if bearish_fvg:
+            result.update({
+                "detected": True,
+                "direction": "Bearish",
+                "break_level": min(prior_lows),
+                "fvg_low": float(candle_c["high"]),
+                "fvg_high": float(candle_a["low"]),
+                "reason": "Downside break with bearish FVG",
+            })
+
+    return result
 
 def evaluate_strategy_combinations(candles, technical):
     """
