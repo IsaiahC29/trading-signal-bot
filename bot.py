@@ -6251,10 +6251,13 @@ def build_entry_segments(timeframe_results):
             and trigger_direction in ("Bullish", "Bearish")
         )
 
-        # A strategy candidate must have sufficient evidence.
+        # A candidate without a live entry trigger needs stronger
+        # independent evidence. Keep valid 5M/15M triggers eligible,
+        # but do not let a score alone manufacture a trade.
         strategy_usable = (
             strategy_direction in ("Bullish", "Bearish")
-            and strategy_score >= 60
+            and strategy_score >= 70
+            and len(evidence) >= 2
         )
 
         if not trigger_usable and not strategy_usable:
