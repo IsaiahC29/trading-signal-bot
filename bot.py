@@ -2723,13 +2723,25 @@ def pivot_points(
     return highs, lows
 
 
-def calculate_structure(
-    candles
-):
-    recent = candles[-100:]
+def calculate_structure(candles):
+    """
+    Classify market structure using confirmed swing highs and lows.
+    Returns the existing keys expected by downstream code.
+    """
+
+    if len(candles) < 20:
+        return {
+            "label": "Unknown",
+            "score": 0,
+            "support": None,
+            "resistance": None,
+        }
+
+    # Exclude the newest candle because it may still be forming.
+    completed = candles[:-1][-100:]
 
     highs, lows = pivot_points(
-        recent,
+        completed,
         left=3,
         right=3,
     )
@@ -2738,96 +2750,56 @@ def calculate_structure(
         return {
             "label": "Unknown",
             "score": 0,
-            "support": None,
-            "resistance": None,
+            "support": lows[-1][1] if lows else None,
+            "resistance": highs[-1][1] if highs else None,
         }
 
-    recent_highs = highs[-6:]
-    recent_lows = lows[-6:]
-
-    high_values = [
-        point[1]
-        for point in recent_highs
-    ]
-
-    low_values = [
-        point[1]
-        for point in recent_lows
-    ]
-
-    higher_highs = 0
-    lower_highs = 0
-
-    higher_lows = 0
-    lower_lows = 0
-
-    # Compare consecutive swing highs.
-    for i in range(1, len(high_values)):
-
-        if high_values[i] > high_values[i - 1]:
-            higher_highs += 1
-
-        elif high_values[i] < high_values[i - 1]:
-            lower_highs += 1
-
-    # Compare consecutive swing lows.
-    for i in range(1, len(low_values)):
-
-        if low_values[i] > low_values[i - 1]:
-            higher_lows += 1
-
-        elif low_values[i] < low_values[i - 1]:
-            lower_lows += 1
+    high_values = [point[1] for point in highs[-3:]]
+    low_values = [point[1] for point in lows[-3:]]
 
     latest_high = high_values[-1]
     latest_low = low_values[-1]
 
-    score = 0
+    # Compare the latest confirmed swing with the previous swing.
+    higher_high = high_values[-1] > high_values[-2]
+    lower_high = high_values[-1] < high_values[-2]
+    higher_low = low_values[-1] > low_values[-2]
+    lower_low = low_values[-1] < low_values[-2]
 
-    # Basic structure scoring.
-    if higher_highs >= 1:
-        score += 1
+    bullish_pair = higher_high and higher_low
+    bearish_pair = lower_high and lower_low
 
-    if higher_lows >= 1:
-        score += 1
+    # Strong structure requires two consecutive aligned swing changes.
+    strong_bullish = (
+        len(high_values) >= 3
+        and len(low_values) >= 3
+        and high_values[-2] > high_values[-3]
+        and high_values[-1] > high_values[-2]
+        and low_values[-2] > low_values[-3]
+        and low_values[-1] > low_values[-2]
+    )
 
-    if lower_highs >= 1:
-        score -= 1
+    strong_bearish = (
+        len(high_values) >= 3
+        and len(low_values) >= 3
+        and high_values[-2] < high_values[-3]
+        and high_values[-1] < high_values[-2]
+        and low_values[-2] < low_values[-3]
+        and low_values[-1] < low_values[-2]
+    )
 
-    if lower_lows >= 1:
-        score -= 1
-
-    # Strong bullish structure.
-    if (
-        higher_highs >= 1
-        and higher_lows >= 1
-        and lower_highs == 0
-        and lower_lows == 0
-    ):
+    if strong_bullish:
         label = "Strong Bullish Structure"
         score = 3
-
-    # Strong bearish structure.
-    elif (
-        lower_highs >= 1
-        and lower_lows >= 1
-        and higher_highs == 0
-        and higher_lows == 0
-    ):
+    elif strong_bearish:
         label = "Strong Bearish Structure"
         score = -3
-
-    # Bullish lean.
-    elif score >= 2:
+    elif bullish_pair:
         label = "Bullish Lean"
         score = 2
-
-    # Bearish lean.
-    elif score <= -2:
+    elif bearish_pair:
         label = "Bearish Lean"
         score = -2
-
-    # Anything conflicting or insufficiently directional.
     else:
         label = "Mixed / Sideways"
         score = 0
