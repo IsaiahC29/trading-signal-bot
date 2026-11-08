@@ -3862,22 +3862,32 @@ def detect_entry_setup(candles, technical):
 
     last_close = last["close"]
     
-    # Detect a confirmed reversal against the current technical bias.
-    # Require a directional CHoCH and a candle closing in that direction.
+    # A reversal needs CHoCH, a candle closing in the new
+    # direction, and at least one additional structure clue.
     reversal_direction = None
 
-    if (
-        bias == "Bearish"
-        and smc.get("choch") == "Bullish"
+    bullish_reversal_confirmed = (
+        smc.get("choch") == "Bullish"
         and last["close"] > last["open"]
-    ):
+        and (
+            smc.get("bos") == "Bullish"
+            or smc.get("liquidity_sweep") == "Bullish"
+        )
+    )
+
+    bearish_reversal_confirmed = (
+        smc.get("choch") == "Bearish"
+        and last["close"] < last["open"]
+        and (
+            smc.get("bos") == "Bearish"
+            or smc.get("liquidity_sweep") == "Bearish"
+        )
+    )
+
+    if bias == "Bearish" and bullish_reversal_confirmed:
         reversal_direction = "Bullish"
 
-    elif (
-        bias == "Bullish"
-        and smc.get("choch") == "Bearish"
-        and last["close"] < last["open"]
-    ):
+    elif bias == "Bullish" and bearish_reversal_confirmed:
         reversal_direction = "Bearish"
 
     if reversal_direction:
@@ -3957,13 +3967,16 @@ def detect_entry_setup(candles, technical):
         bullish_choch = (
             smc.get("choch") == "Bullish"
         )
-
         
-        # Confirm a bullish reaction inside the FVG.
-        bullish_fvg_confirmation = (
-            fvg_retest
-            and last_close > last["open"]
-            and last_close >= bullish_zone["midpoint"]
+        # A continuation requires a pullback first.
+        # A sweep alone or CHoCH alone cannot authorize entry.
+        trigger = (
+            pullback
+            and (
+                reclaim
+                or bos
+                or bullish_fvg_confirmation
+            )
         )
 
         trigger = (
@@ -4005,16 +4018,6 @@ def detect_entry_setup(candles, technical):
                 "reclaim/structure confirmation"
             )
 
-        elif trigger:
-
-            result["setup"] = (
-                "BULLISH TRIGGER"
-            )
-
-            result["entry_reason"] = (
-                "Bullish structure/momentum "
-                "confirmation"
-            )
 
     # ========================================================
     # BEARISH
@@ -4059,14 +4062,17 @@ def detect_entry_setup(candles, technical):
                 )
             )
         )
-
-        result["fvg_retest"] = fvg_retest
-
-        bearish_fvg_confirmation = (
-                fvg_retest
-                and last_close < last["open"]
-                and last_close <= bearish_zone["midpoint"]
+        
+        # A continuation requires a rally/pullback first.
+        # A sweep alone or CHoCH alone cannot authorize entry.
+        trigger = (
+            pullback
+            and (
+                rejection
+                or bos
+                or bearish_fvg_confirmation
             )
+        )
 
         bearish_choch = (
             smc.get("choch") == "Bearish"
@@ -4109,17 +4115,6 @@ def detect_entry_setup(candles, technical):
             result["entry_reason"] = (
                 "Bearish trend rally with "
                 "rejection/structure confirmation"
-            )
-
-        elif trigger:
-
-            result["setup"] = (
-                "BEARISH TRIGGER"
-            )
-
-            result["entry_reason"] = (
-                "Bearish structure/momentum "
-                "confirmation"
             )
 
     return result
