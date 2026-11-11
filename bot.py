@@ -4054,27 +4054,20 @@ def detect_entry_setup(candles, technical):
             )
         )
         
+                bearish_choch = (
+            smc.get("choch") == "Bearish"
+        )
+
         # A continuation requires a rally/pullback first.
-        # A sweep alone or CHoCH alone cannot authorize entry.
+        # Confirmation must occur after that pullback.
         trigger = (
             pullback
             and (
                 rejection
+                or sweep
                 or bos
-                or bearish_fvg_confirmation
+                or bearish_choch
             )
-        )
-
-        bearish_choch = (
-            smc.get("choch") == "Bearish"
-        )
-
-        trigger = (
-            rejection
-            or sweep
-            or bos
-            or bearish_choch
-            or bearish_fvg_confirmation
         )
 
         result["direction"] = "Bearish"
@@ -4085,7 +4078,7 @@ def detect_entry_setup(candles, technical):
         result["bos"] = smc.get("bos")
         result["choch"] = smc.get("choch")
         result["trigger"] = trigger
-        
+
         print(
             "ENTRY TRIGGER CHECK:",
             "direction=Bearish",
@@ -4094,15 +4087,12 @@ def detect_entry_setup(candles, technical):
             "sweep=", sweep,
             "bos=", bos,
             "choch=", bearish_choch,
-            "fvg_confirmation=", bearish_fvg_confirmation,
+            "fvg_retest=", fvg_retest,
             "trigger=", trigger,
         )
-        if pullback and trigger:
 
-            result["setup"] = (
-                "SELL THE RALLY"
-            )
-
+        if trigger:
+            result["setup"] = "SELL THE RALLY"
             result["entry_reason"] = (
                 "Bearish trend rally with "
                 "rejection/structure confirmation"
