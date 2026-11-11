@@ -3968,23 +3968,17 @@ def detect_entry_setup(candles, technical):
             smc.get("choch") == "Bullish"
         )
         
+        
         # A continuation requires a pullback first.
-        # A sweep alone or CHoCH alone cannot authorize entry.
+        # Confirmation must occur after that pullback.
         trigger = (
             pullback
             and (
                 reclaim
+                or sweep
                 or bos
-                or bullish_fvg_confirmation
+                or bullish_choch
             )
-        )
-
-        trigger = (
-            reclaim
-            or sweep
-            or bos
-            or bullish_choch
-            or bullish_fvg_confirmation
         )
 
         result["direction"] = "Bullish"
@@ -3995,7 +3989,7 @@ def detect_entry_setup(candles, technical):
         result["bos"] = smc.get("bos")
         result["choch"] = smc.get("choch")
         result["trigger"] = trigger
-        
+
         print(
             "ENTRY TRIGGER CHECK:",
             "direction=Bullish",
@@ -4004,15 +3998,12 @@ def detect_entry_setup(candles, technical):
             "sweep=", sweep,
             "bos=", bos,
             "choch=", bullish_choch,
-            "fvg_confirmation=", bullish_fvg_confirmation,
+            "fvg_retest=", fvg_retest,
             "trigger=", trigger,
         )
-        if pullback and trigger:
 
-            result["setup"] = (
-                "BUY THE DIP"
-            )
-
+        if trigger:
+            result["setup"] = "BUY THE DIP"
             result["entry_reason"] = (
                 "Bullish trend pullback with "
                 "reclaim/structure confirmation"
