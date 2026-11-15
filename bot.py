@@ -4054,7 +4054,7 @@ def detect_entry_setup(candles, technical):
             )
         )
         
-                bearish_choch = (
+        bearish_choch = (
             smc.get("choch") == "Bearish"
         )
 
