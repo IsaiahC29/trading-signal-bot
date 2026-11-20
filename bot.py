@@ -1073,7 +1073,10 @@ def inspect_okx_perpetuals():
             if not base:
                 base = inst_id[:-len("-USDT-SWAP")]
 
-            if base in APPROVED_ASSETS:
+            if (
+                not BYDFI_PERPETUAL_ASSETS
+                or base in BYDFI_PERPETUAL_ASSETS
+            ):
                 perpetuals[base] = inst_id
 
         if not perpetuals:
