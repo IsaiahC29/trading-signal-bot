@@ -1131,9 +1131,13 @@ def inspect_gateio_perpetuals():
                 continue
 
             name = str(contract.get("name") or "").upper()
+            
             if name.endswith("_USDT"):
                 base = name[:-5]
-                if base in APPROVED_ASSETS:
+                if (
+                    not BYDFI_PERPETUAL_ASSETS
+                    or base in BYDFI_PERPETUAL_ASSETS
+                ):
                     markets[base] = name
 
         GATEIO_PERPETUAL_MARKETS = markets
