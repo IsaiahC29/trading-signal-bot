@@ -6208,11 +6208,14 @@ def build_entry_segments(timeframe_results):
             and len(evidence) >= 2
         )
 
-        if not trigger_usable and not strategy_usable:
+                # A confirmed 5M/15M trigger is mandatory.
+        # Strategy scores and evidence may rank a triggered setup,
+        # but they cannot independently authorize a live entry.
+        if not trigger_usable:
             print(
                 "ENTRY TIMEFRAME REJECTED:",
                 timeframe,
-                "reason=no_usable_trigger_or_candidate",
+                "reason=no_confirmed_entry_trigger",
                 "trigger=", trigger,
                 "trigger_direction=", trigger_direction,
                 "strategy_direction=", strategy_direction,
@@ -6220,10 +6223,10 @@ def build_entry_segments(timeframe_results):
             )
             continue
 
-        # If both sources qualify but disagree, do not guess.
+        # If the strategy candidate also qualifies but disagrees,
+        # reject rather than guessing the direction.
         if (
-            trigger_usable
-            and strategy_usable
+            strategy_usable
             and trigger_direction != strategy_direction
         ):
             print(
