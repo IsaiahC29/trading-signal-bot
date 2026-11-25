@@ -6688,15 +6688,10 @@ def scan_market():
     results = []
 
     
-        discovered_markets = (
-        set(OKX_PERPETUAL_MARKETS)
-        | set(GATEIO_PERPETUAL_MARKETS)
+    scan_coins = sorted(
+        set(APPROVED_ASSETS)
+        & (set(OKX_PERPETUAL_MARKETS) | set(GATEIO_PERPETUAL_MARKETS))
     )
-
-    if BYDFI_PERPETUAL_ASSETS:
-        discovered_markets &= BYDFI_PERPETUAL_ASSETS
-
-    scan_coins = sorted(discovered_markets)
 
     original_symbols = {}
     added_coins = []
