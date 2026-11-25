@@ -1073,7 +1073,10 @@ def inspect_okx_perpetuals():
             if not base:
                 base = inst_id[:-len("-USDT-SWAP")]
 
-            if base in APPROVED_ASSETS:
+            if (
+                not BYDFI_PERPETUAL_ASSETS
+                or base in BYDFI_PERPETUAL_ASSETS
+            ):
                 perpetuals[base] = inst_id
 
         if not perpetuals:
@@ -1128,9 +1131,13 @@ def inspect_gateio_perpetuals():
                 continue
 
             name = str(contract.get("name") or "").upper()
+            
             if name.endswith("_USDT"):
                 base = name[:-5]
-                if base in APPROVED_ASSETS:
+                if (
+                    not BYDFI_PERPETUAL_ASSETS
+                    or base in BYDFI_PERPETUAL_ASSETS
+                ):
                     markets[base] = name
 
         GATEIO_PERPETUAL_MARKETS = markets
@@ -3968,23 +3975,17 @@ def detect_entry_setup(candles, technical):
             smc.get("choch") == "Bullish"
         )
         
+        
         # A continuation requires a pullback first.
-        # A sweep alone or CHoCH alone cannot authorize entry.
+        # Confirmation must occur after that pullback.
         trigger = (
             pullback
             and (
                 reclaim
+                or sweep
                 or bos
-                or bullish_fvg_confirmation
+                or bullish_choch
             )
-        )
-
-        trigger = (
-            reclaim
-            or sweep
-            or bos
-            or bullish_choch
-            or bullish_fvg_confirmation
         )
 
         result["direction"] = "Bullish"
@@ -3995,7 +3996,7 @@ def detect_entry_setup(candles, technical):
         result["bos"] = smc.get("bos")
         result["choch"] = smc.get("choch")
         result["trigger"] = trigger
-        
+
         print(
             "ENTRY TRIGGER CHECK:",
             "direction=Bullish",
@@ -4004,15 +4005,12 @@ def detect_entry_setup(candles, technical):
             "sweep=", sweep,
             "bos=", bos,
             "choch=", bullish_choch,
-            "fvg_confirmation=", bullish_fvg_confirmation,
+            "fvg_retest=", fvg_retest,
             "trigger=", trigger,
         )
-        if pullback and trigger:
 
-            result["setup"] = (
-                "BUY THE DIP"
-            )
-
+        if trigger:
+            result["setup"] = "BUY THE DIP"
             result["entry_reason"] = (
                 "Bullish trend pullback with "
                 "reclaim/structure confirmation"
@@ -4063,27 +4061,20 @@ def detect_entry_setup(candles, technical):
             )
         )
         
-        # A continuation requires a rally/pullback first.
-        # A sweep alone or CHoCH alone cannot authorize entry.
-        trigger = (
-            pullback
-            and (
-                rejection
-                or bos
-                or bearish_fvg_confirmation
-            )
-        )
-
         bearish_choch = (
             smc.get("choch") == "Bearish"
         )
 
+        # A continuation requires a rally/pullback first.
+        # Confirmation must occur after that pullback.
         trigger = (
-            rejection
-            or sweep
-            or bos
-            or bearish_choch
-            or bearish_fvg_confirmation
+            pullback
+            and (
+                rejection
+                or sweep
+                or bos
+                or bearish_choch
+            )
         )
 
         result["direction"] = "Bearish"
@@ -4094,7 +4085,7 @@ def detect_entry_setup(candles, technical):
         result["bos"] = smc.get("bos")
         result["choch"] = smc.get("choch")
         result["trigger"] = trigger
-        
+
         print(
             "ENTRY TRIGGER CHECK:",
             "direction=Bearish",
@@ -4103,15 +4094,12 @@ def detect_entry_setup(candles, technical):
             "sweep=", sweep,
             "bos=", bos,
             "choch=", bearish_choch,
-            "fvg_confirmation=", bearish_fvg_confirmation,
+            "fvg_retest=", fvg_retest,
             "trigger=", trigger,
         )
-        if pullback and trigger:
 
-            result["setup"] = (
-                "SELL THE RALLY"
-            )
-
+        if trigger:
+            result["setup"] = "SELL THE RALLY"
             result["entry_reason"] = (
                 "Bearish trend rally with "
                 "rejection/structure confirmation"
@@ -6227,11 +6215,14 @@ def build_entry_segments(timeframe_results):
             and len(evidence) >= 2
         )
 
-        if not trigger_usable and not strategy_usable:
+                # A confirmed 5M/15M trigger is mandatory.
+        # Strategy scores and evidence may rank a triggered setup,
+        # but they cannot independently authorize a live entry.
+        if not trigger_usable:
             print(
                 "ENTRY TIMEFRAME REJECTED:",
                 timeframe,
-                "reason=no_usable_trigger_or_candidate",
+                "reason=no_confirmed_entry_trigger",
                 "trigger=", trigger,
                 "trigger_direction=", trigger_direction,
                 "strategy_direction=", strategy_direction,
@@ -6239,10 +6230,10 @@ def build_entry_segments(timeframe_results):
             )
             continue
 
-        # If both sources qualify but disagree, do not guess.
+        # If the strategy candidate also qualifies but disagrees,
+        # reject rather than guessing the direction.
         if (
-            trigger_usable
-            and strategy_usable
+            strategy_usable
             and trigger_direction != strategy_direction
         ):
             print(
